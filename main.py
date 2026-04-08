@@ -25,6 +25,9 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# 全局Agent实例
+agent = None
+
 # 启动时初始化Agent
 @app.on_event("startup")
 async def startup_event():
@@ -62,7 +65,7 @@ async def root():
     return {
         "status": "running",
         "service": "GameTestAgent",
-        "skills": agent.list_skills()
+        "skills": agent.list_skills() if agent else []
     }
 
 @app.post("/execute")
@@ -81,11 +84,13 @@ async def cli_main():
     print("=" * 60)
     print("GameTestAgent - CLI模式")
     print("=" * 60)
-    # ... 保留您原来的main函数逻辑 ...
+    print("提示：此程序现在作为Web服务运行，请使用以下命令启动：")
+    print("")
+    print("  uvicorn main:app --host 0.0.0.0 --port 8000 --reload")
+    print("")
+    print("然后在浏览器访问: http://121.41.36.197:8000")
+    print("=" * 60)
 
 if __name__ == "__main__":
     import asyncio
     asyncio.run(cli_main())
-
-if __name__ == "__main__":
-    asyncio.run(main())
