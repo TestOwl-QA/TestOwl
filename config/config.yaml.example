@@ -1,0 +1,117 @@
+# GameTestAgent 配置文件示例
+# 复制此文件为 config.yaml 并填入你的配置
+
+# 大模型配置
+llm:
+  # 提供商: moonshot(月之暗面), openai, deepseek
+  provider: moonshot
+  
+  # API密钥（必填）
+  # 可以从环境变量读取: export LLM_API_KEY=your_key
+  api_key: ""
+  
+  # 自定义base_url（可选）
+  # base_url: "https://api.moonshot.cn/v1"
+  
+  # 模型名称（可选，使用默认值）
+  # model: "kimi-k2.5"
+  
+  # 温度参数（0-2，越高越随机）
+  temperature: 0.7
+  
+  # 最大token数
+  max_tokens: 4096
+  
+  # 超时时间（秒）
+  timeout: 60
+
+# 文档解析配置
+document:
+  # 支持的文件格式
+  supported_formats: ["docx", "pdf", "md", "txt", "html"]
+  
+  # 最大文件大小（字节）
+  max_file_size: 52428800  # 50MB
+  
+  # 默认编码
+  encoding: "utf-8"
+
+# 存储配置
+storage:
+  # 存储类型: local, s3, oss
+  type: local
+  
+  # 本地输出目录
+  output_dir: "./output"
+  
+  # S3/OSS配置（如使用）
+  # access_key: ""
+  # secret_key: ""
+  # bucket: ""
+  # endpoint: ""
+
+# 项目管理平台配置（可配置多个）
+platforms:
+  # Jira示例
+  - name: jira
+    enabled: false
+    base_url: "https://your-domain.atlassian.net"
+    username: ""
+    api_token: ""  # 或密码
+    project_key: ""
+  
+  # 禅道示例
+  - name: zentao
+    enabled: false
+    base_url: "http://your-zentao.com"
+    username: ""
+    password: ""
+    project_key: ""
+  
+  # Redmine示例
+  - name: redmine
+    enabled: false
+    base_url: "http://your-redmine.com"
+    api_token: ""
+    project_key: ""
+  
+  # Tapd示例
+  - name: tapd
+    enabled: false
+    base_url: "https://api.tapd.cn"
+    username: ""  # 即API User
+    password: ""  # 即API Password
+    project_key: ""
+
+# 表检查配置
+table_check:
+  # 启用的检查规则
+  enabled_rules:
+    - unique_check      # 唯一性检查
+    - null_check        # 空值检查
+    - format_check      # 格式检查
+    - range_check       # 范围检查
+    - reference_check   # 引用检查
+  
+  # 自定义规则目录
+  custom_rules_dir: "./custom_rules"
+  
+  # 批量处理大小
+  batch_size: 1000
+
+# 测试用例配置
+test_case:
+  # 输出格式: excel, xmind, json
+  output_format: excel
+  
+  # 模板目录
+  template_dir: "./templates"
+  
+  # 默认优先级
+  default_priority: P2
+  
+  # 是否包含前置条件
+  include_precondition: true
+  
+  # 是否包含测试数据
+  include_test_data: true
