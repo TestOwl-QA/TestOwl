@@ -1,3 +1,15 @@
 # цТ╦пеДжцнд╪Ч 
 config/config.yaml 
 .env
+
+# Python Г╪⌠Е╜≤
+__pycache__/
+*.pyc
+*.pyo
+
+# Ф≈╔Е©≈Ф√┤Д╩╤
+logs/
+*.log
+
+# Ф°█Е┼║Е≥╗Ф≈╔Е©≈
+server.log
