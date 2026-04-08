@@ -2,9 +2,11 @@
 配置管理模块
 
 支持从YAML配置文件和环境变量读取配置
+修复: GT-002 配置加载异常 - 增强验证和错误提示
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
@@ -114,25 +116,41 @@ class Config:
     
     def _find_config_file(self) -> str:
         """查找配置文件"""
+        # 获取项目根目录（脚本所在目录）
+        script_dir = Path(__file__).parent.parent.parent.resolve()
+        
         possible_paths = [
-            "./config/config.yaml",
-            "./config.yaml",
-            "../config/config.yaml",
+            script_dir / "config" / "config.yaml",
+            script_dir / "config.yaml",
+            Path("./config/config.yaml"),
+            Path("./config.yaml"),
+            Path("../config/config.yaml"),
         ]
         
         for path in possible_paths:
-            if Path(path).exists():
-                return path
+            if path.exists():
+                return str(path)
         
-        # 如果没有找到配置文件，使用默认配置
-        return ""
+        # 如果没有找到配置文件，返回默认路径
+        return str(script_dir / "config" / "config.yaml")
     
     def _load(self):
         """加载配置"""
         # 1. 从配置文件加载
         if self._config_path and Path(self._config_path).exists():
-            with open(self._config_path, 'r', encoding='utf-8') as f:
-                self._raw_config = yaml.safe_load(f) or {}
+            try:
+                with open(self._config_path, 'r', encoding='utf-8') as f:
+                    self._raw_config = yaml.safe_load(f) or {}
+            except yaml.YAMLError as e:
+                raise ConfigError(
+                    f"配置文件格式错误: {e}\n"
+                    f"请检查 {self._config_path} 是否为有效的YAML格式"
+                )
+            except Exception as e:
+                raise ConfigError(
+                    f"读取配置文件失败: {e}\n"
+                    f"配置文件路径: {self._config_path}"
+                )
         
         # 2. 从环境变量加载（优先级更高）
         self._load_from_env()
@@ -248,24 +266,94 @@ class Config:
     
     def validate(self) -> bool:
         """
-        验证配置是否有效
+        验证配置是否有效（增强版）
         
         Returns:
             是否有效
         
         Raises:
-            ConfigError: 配置无效时抛出
+            ConfigError: 配置无效时抛出，包含详细的修复建议
         """
-        # 验证LLM配置
-        if not self.llm.api_key:
-            raise ConfigError("LLM API密钥未配置，请设置 llm.api_key 或环境变量 LLM_API_KEY")
+        errors = []
         
-        # 验证存储目录
-        output_path = Path(self.storage.output_dir)
-        if not output_path.exists():
-            output_path.mkdir(parents=True, exist_ok=True)
+        # 1. 验证配置文件是否存在
+        if not Path(self._config_path).exists():
+            example_path = Path(self._config_path).parent / "config.yaml.example"
+            error_msg = (
+                f"配置文件不存在: {self._config_path}\n\n"
+                f"修复步骤:\n"
+                f"1. 复制模板文件:\n"
+                f"   cp {example_path} {self._config_path}\n\n"
+                f"2. 编辑配置文件，填入你的API密钥:\n"
+                f"   修改 llm.api_key 字段\n\n"
+                f"或者设置环境变量:\n"
+                f"   export LLM_API_KEY=your_api_key_here"
+            )
+            raise ConfigError(error_msg)
+        
+        # 2. 验证LLM配置
+        api_key = self.llm.api_key.strip() if self.llm.api_key else ""
+        env_api_key = os.getenv("LLM_API_KEY", "").strip()
+        
+        if not api_key and not env_api_key:
+            errors.append(
+                "LLM API密钥未配置\n"
+                "修复方法（选择其一）:\n"
+                f"  1. 编辑配置文件 {self._config_path}，设置 llm.api_key\n"
+                "  2. 设置环境变量: export LLM_API_KEY=your_key"
+            )
+        
+        # 3. 验证提供商配置
+        valid_providers = ["moonshot", "openai", "deepseek"]
+        if self.llm.provider not in valid_providers:
+            errors.append(
+                f"不支持的LLM提供商: {self.llm.provider}\n"
+                f"支持的提供商: {', '.join(valid_providers)}"
+            )
+        
+        # 4. 验证存储目录
+        try:
+            output_path = Path(self.storage.output_dir)
+            if not output_path.exists():
+                output_path.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            errors.append(
+                f"无法创建输出目录 {self.storage.output_dir}: {e}\n"
+                "请检查目录权限或修改 storage.output_dir 配置"
+            )
+        
+        # 如果有错误，抛出异常
+        if errors:
+            error_msg = "配置验证失败:\n\n" + "\n\n".join(
+                f"[{i+1}] {err}" for i, err in enumerate(errors)
+            )
+            raise ConfigError(error_msg)
         
         return True
+    
+    def get_config_info(self) -> Dict[str, Any]:
+        """
+        获取配置信息摘要（用于调试，隐藏敏感信息）
+        
+        Returns:
+            配置信息字典
+        """
+        return {
+            "config_path": self._config_path,
+            "llm": {
+                "provider": self.llm.provider,
+                "model": self.llm.model,
+                "api_key_configured": bool(self.llm.api_key),
+                "env_api_key_configured": bool(os.getenv("LLM_API_KEY")),
+            },
+            "storage": {
+                "type": self.storage.type,
+                "output_dir": self.storage.output_dir,
+            },
+            "document": {
+                "supported_formats": self.document.supported_formats,
+            },
+        }
 
 
 # 全局配置实例
