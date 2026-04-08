@@ -1,0 +1,32 @@
+2026-04-08 12:31:57 | INFO     | src.core.agent:__init__:77 - GameTestAgent initialized
+2026-04-08 12:31:57 | INFO     | src.adapters.llm.client:__init__:83 - LLMClient initialized with provider: moonshot, model: kimi-k2.5
+2026-04-08 12:31:57 | INFO     | src.core.agent:register_skill:94 - Skill 'document_analyzer' registered
+2026-04-08 12:31:57 | INFO     | src.adapters.llm.client:__init__:83 - LLMClient initialized with provider: moonshot, model: kimi-k2.5
+2026-04-08 12:31:57 | INFO     | src.core.agent:register_skill:94 - Skill 'test_case_generator' registered
+2026-04-08 12:31:57 | INFO     | src.adapters.llm.client:__init__:83 - LLMClient initialized with provider: moonshot, model: kimi-k2.5
+2026-04-08 12:31:57 | INFO     | src.core.agent:register_skill:94 - Skill 'bug_tracker' registered
+2026-04-08 12:31:57 | INFO     | src.core.agent:register_skill:94 - Skill 'table_checker' registered
+2026-04-08 13:10:17 | INFO     | src.core.agent:__init__:77 - GameTestAgent initialized
+2026-04-08 13:11:55 | INFO     | src.core.agent:__init__:77 - GameTestAgent initialized
+2026-04-08 13:13:23 | INFO     | src.core.agent:__init__:77 - GameTestAgent initialized
+2026-04-08 13:15:47 | INFO     | src.core.agent:__init__:77 - GameTestAgent initialized
+2026-04-08 13:20:19 | INFO     | src.core.agent:__init__:77 - GameTestAgent initialized
+2026-04-08 13:20:19 | INFO     | src.adapters.llm.client:__init__:83 - LLMClient initialized with provider: moonshot, model: kimi-k2.5
+2026-04-08 13:20:19 | INFO     | src.core.agent:register_skill:94 - Skill 'document_analyzer' registered
+2026-04-08 13:20:19 | INFO     | src.adapters.llm.client:__init__:83 - LLMClient initialized with provider: moonshot, model: kimi-k2.5
+2026-04-08 13:20:19 | INFO     | src.core.agent:register_skill:94 - Skill 'test_case_generator' registered
+2026-04-08 13:20:19 | INFO     | src.adapters.llm.client:__init__:83 - LLMClient initialized with provider: moonshot, model: kimi-k2.5
+2026-04-08 13:20:19 | INFO     | src.core.agent:register_skill:94 - Skill 'bug_tracker' registered
+2026-04-08 13:20:19 | INFO     | src.core.agent:register_skill:94 - Skill 'table_checker' registered
+2026-04-08 13:21:46 | INFO     | src.core.agent:execute:206 - Executing skill 'bug_tracker'
+2026-04-08 13:21:46 | INFO     | src.skills.bug_tracker.skill:execute:169 - Processing bug report: None
+2026-04-08 13:22:25 | DEBUG    | src.adapters.llm.client:complete:123 - LLM response received, length: 957
+2026-04-08 13:22:25 | INFO     | src.core.agent:execute:220 - Skill 'bug_tracker' executed successfully
+2026-04-08 13:24:36 | INFO     | src.core.agent:__init__:77 - GameTestAgent initialized
+2026-04-08 13:24:36 | INFO     | src.adapters.llm.client:__init__:83 - LLMClient initialized with provider: moonshot, model: kimi-k2.5
+2026-04-08 13:24:36 | INFO     | src.core.agent:register_skill:94 - Skill 'document_analyzer' registered
+2026-04-08 13:24:36 | INFO     | src.adapters.llm.client:__init__:83 - LLMClient initialized with provider: moonshot, model: kimi-k2.5
+2026-04-08 13:24:36 | INFO     | src.core.agent:register_skill:94 - Skill 'test_case_generator' registered
+2026-04-08 13:24:36 | INFO     | src.adapters.llm.client:__init__:83 - LLMClient initialized with provider: moonshot, model: kimi-k2.5
+2026-04-08 13:24:36 | INFO     | src.core.agent:register_skill:94 - Skill 'bug_tracker' registered
+2026-04-08 13:24:36 | INFO     | src.core.agent:register_skill:94 - Skill 'table_checker' registered
