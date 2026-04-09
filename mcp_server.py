@@ -223,7 +223,7 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
     """运行 SSE 模式服务器"""
     from mcp.server.sse import SseServerTransport
     from starlette.applications import Starlette
-    from starlette.routing import Route, Mount
+    from starlette.routing import Route
     from starlette.responses import Response
     from contextlib import asynccontextmanager
     import uvicorn
@@ -249,9 +249,13 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
         async with sse_transport.connect_sse(scope, receive, send) as streams:
             await handler.server.run(streams[0], streams[1], handler.server.create_initialization_options())
     
+    async def handle_messages(scope, receive, send):
+        """处理 POST 消息 - ASGI 包装器"""
+        await sse_transport.handle_post_message(scope, receive, send)
+    
     app = Starlette(lifespan=lifespan, routes=[
         Route("/sse", endpoint=handle_sse, methods=["GET"]),
-        Mount("/messages/", app=sse_transport.handle_post_message),
+        Route("/messages/{path:path}", endpoint=handle_messages, methods=["POST"]),
     ])
     
     print(f"🚀 MCP SSE 服务器启动于 http://{host}:{port}")
