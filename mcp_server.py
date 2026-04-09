@@ -231,11 +231,6 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
     handler = MCPHandler()
     sse_transport = SseServerTransport("/messages/")
     
-    @asynccontextmanager
-    async def lifespan(app):
-        handler.init_agent("placeholder")  # SSE 模式使用用户提供的 Key
-        yield
-    
     def get_api_key_from_request(request) -> Optional[str]:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
@@ -245,6 +240,7 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
     async def handle_sse(request):
         from starlette.requests import Request
         handler.user_api_key = get_api_key_from_request(request)
+        handler.init_agent()  # 获取到 Key 后再初始化 Agent
         scope = request.scope
         receive = request.receive
         send = request._send
@@ -258,7 +254,7 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
         send = request._send
         await sse_transport.handle_post_message(scope, receive, send)
     
-    app = Starlette(lifespan=lifespan, routes=[
+    app = Starlette(routes=[
         Route("/sse", endpoint=handle_sse, methods=["GET"]),
         Route("/messages/", endpoint=handle_post_message, methods=["POST"]),
     ])
