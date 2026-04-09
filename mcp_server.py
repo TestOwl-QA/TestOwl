@@ -255,6 +255,8 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
         receive = request.receive
         send = request._send
         await sse_transport.handle_post_message(scope, receive, send)
+    from starlette.responses import Response
+    return Response()
     
     @asynccontextmanager
     async def lifespan(app):
