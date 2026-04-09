@@ -251,8 +251,11 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
         async with sse_transport.connect_sse(scope, receive, send) as streams:
             await handler.server.run(streams[0], streams[1], handler.server.create_initialization_options())
     
-    async def handle_messages(scope, receive, send):
+    async def handle_messages(request):
         """处理 POST 消息 - ASGI 包装器"""
+        scope = request.scope
+        receive = request.receive
+        send = request._send
         await sse_transport.handle_post_message(scope, receive, send)
     
     app = Starlette(lifespan=lifespan, routes=[
