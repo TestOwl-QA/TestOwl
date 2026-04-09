@@ -24,7 +24,7 @@ load_dotenv()
 class LLMConfig:
     """大模型配置"""
     provider: str = "moonshot"  # 默认使用月之暗面
-    api_key: str = ""
+    api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY", ""))
     base_url: str = ""
     model: str = "kimi-k2.5"
     temperature: float = 1
@@ -175,11 +175,16 @@ class Config:
     
     def _parse_config(self):
         """解析配置到各模块"""
-        # LLM配置
+        # LLM配置 - 优先使用环境变量
         llm_config = self._raw_config.get("llm", {})
+        # 如果配置文件中的api_key为空，尝试从环境变量获取
+        api_key = llm_config.get("api_key", "")
+        if not api_key:
+            api_key = os.getenv("LLM_API_KEY", "")
+        
         self.llm = LLMConfig(
             provider=llm_config.get("provider", "moonshot"),
-            api_key=llm_config.get("api_key", ""),
+            api_key=api_key,
             base_url=llm_config.get("base_url", ""),
             model=llm_config.get("model", "kimi-k2.5"),
             temperature=llm_config.get("temperature", 0.7),
