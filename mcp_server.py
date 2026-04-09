@@ -240,7 +240,7 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
     async def handle_sse(request):
         from starlette.requests import Request
         handler.user_api_key = get_api_key_from_request(request)
-        handler.init_agent()  # 获取到 Key 后再初始化 Agent
+        handler.init_agent(handler.user_api_key)  # 获取到 Key 后再初始化 Agent
         scope = request.scope
         receive = request.receive
         send = request._send
