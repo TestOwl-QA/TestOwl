@@ -1,17 +1,15 @@
-"""
-日志工具（带敏感信息脱敏）
-"""
+""" 日志工具（带敏感信息脱敏） """
 import re
 from pathlib import Path
 from loguru import logger as _logger
 
 # 敏感信息匹配模式
 SENSITIVE_PATTERNS = [
-    (r'sk-[A-Za-z0-9]{20,}', 'sk-***REDACTED***'),      # OpenAI/Kimi API Key
-    (r'Bearer\s+[A-Za-z0-9_-]{20,}', 'Bearer ***'),     # Bearer Token
-    (r'password[=:]\s*\S+', 'password=***'),            # 密码
-    (r'token[=:]\s*[A-Za-z0-9_-]{10,}', 'token=***'),   # Token
-    (r'secret[=:]\s*\S+', 'secret=***'),                # Secret
+    (r'sk-[A-Za-z0-9]{20,}', 'sk-***REDACTED***'),  # OpenAI/Kimi API Key
+    (r'Bearer\s+[A-Za-z0-9_-]{20,}', 'Bearer ***'),  # Bearer Token
+    (r'password[=:]\s*\S+', 'password=***'),  # 密码
+    (r'token[=:]\s*[A-Za-z0-9_-]{10,}', 'token=***'),  # Token
+    (r'secret[=:]\s*\S+', 'secret=***'),  # Secret
 ]
 
 def sanitize(message: str) -> str:
@@ -34,7 +32,6 @@ _logger.add(
     rotation="00:00",
     retention="30 days",
     encoding="utf-8",
-    filter=lambda record: setattr(record, 'message', sanitize(record['message'])) or True,
 )
 
 def get_logger(name: str):

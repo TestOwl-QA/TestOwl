@@ -62,12 +62,12 @@ class MCPHandler:
                      }),
                 
                 # 需求分析
-                Tool(name="analyze_document", description="分析需求文档，提取测试点。支持：1) 直接传入文本内容 2) 传入已上传文件的路径（SSE模式）",
+                Tool(name="analyze_document", description="分析需求文档，提取测试点。支持：1) 直接传入文本内容 2) 传入文件的Base64编码内容",
                      inputSchema={
                          "type": "object", 
                          "properties": {
                              "text": {"type": "string", "description": "直接传入的需求文本内容（碎片化描述）"},
-                             "file_path": {"type": "string", "description": "已上传文件的路径（SSE模式）"}
+                             "content_base64": {"type": "string", "description": "文件的Base64编码内容"}
                          }
                      }),
                 
@@ -77,7 +77,7 @@ class MCPHandler:
                          "type": "object", 
                          "properties": {
                              "text": {"type": "string", "description": "直接传入的需求文本内容"},
-                             "file_path": {"type": "string", "description": "已上传文件的路径（SSE模式）"},
+                             "content_base64": {"type": "string", "description": "文件的Base64编码内容"},
                              "output_format": {"type": "string", "enum": ["excel", "xmind"], "description": "输出格式，默认excel"}
                          }
                      }),
@@ -116,27 +116,27 @@ class MCPHandler:
         
         elif name == "analyze_document":
             text = arguments.get("text", "")
-            file_path = arguments.get("file_path", "")
+            content_base64 = arguments.get("content_base64", "")
             
             if text:
                 result = await self.agent.execute("document_analyzer", {"text": text})
-            elif file_path:
-                result = await self.agent.execute("document_analyzer", {"file_path": file_path})
+            elif content_base64:
+                result = await self.agent.execute("document_analyzer", {"content": base64.b64decode(content_base64).decode("utf-8")})
             else:
-                return [TextContent(type="text", text="错误：需要提供 text 或 file_path")]
+                return [TextContent(type="text", text="错误：需要提供 text 或 content_base64")]
         
         elif name == "generate_test_cases":
             text = arguments.get("text", "")
-            file_path = arguments.get("file_path", "")
+            content_base64 = arguments.get("content_base64", "")
             output_format = arguments.get("output_format", "excel")
             
             params = {"output_format": output_format}
             if text:
                 params["text"] = text
-            elif file_path:
+            elif content_base64:
                 params["file_path"] = file_path
             else:
-                return [TextContent(type="text", text="错误：需要提供 text 或 file_path")]
+                return [TextContent(type="text", text="错误：需要提供 text 或 content_base64")]
             
             result = await self.agent.execute("test_case_generator", params)
         
@@ -145,14 +145,14 @@ class MCPHandler:
         
         elif name == "check_table":
             text = arguments.get("text", "")
-            file_path = arguments.get("file_path", "")
+            content_base64 = arguments.get("content_base64", "")
             
             if file_path:
-                result = await self.agent.execute("table_checker", {"file_path": file_path})
+                result = await self.agent.execute("table_checker", {"content": base64.b64decode(content_base64).decode("utf-8")})
             elif text:
                 result = await self.agent.execute("table_checker", {"text": text})
             else:
-                return [TextContent(type="text", text="错误：需要提供 text 或 file_path")]
+                return [TextContent(type="text", text="错误：需要提供 text 或 content_base64")]
         else:
             return [TextContent(type="text", text=f"未知工具: {name}")]
         
