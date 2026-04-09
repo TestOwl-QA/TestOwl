@@ -69,15 +69,17 @@ class LLMClient:
         base_url = self.config.base_url or provider_config.get("base_url", "")
         model = self.config.model or provider_config.get("model", "")
         
+        # 无API密钥时创建空客户端（后续调用会提示）
         if not self.config.api_key:
-            raise LLMError("API密钥未配置")
-        
-        # 初始化OpenAI客户端
-        self.client = AsyncOpenAI(
-            api_key=self.config.api_key,
-            base_url=base_url,
-            timeout=self.config.timeout,
-        )
+            logger.warning("LLM API密钥未配置，AI功能将不可用")
+            self.client = None
+        else:
+            # 初始化OpenAI客户端
+            self.client = AsyncOpenAI(
+                api_key=self.config.api_key,
+                base_url=base_url,
+                timeout=self.config.timeout,
+            )
         self.model = model
         
         logger.info(f"LLMClient initialized with provider: {self.config.provider}, model: {self.model}")
@@ -104,6 +106,9 @@ class LLMClient:
         Raises:
             LLMError: 调用失败
         """
+        if self.client is None:
+            raise LLMError("LLM API密钥未配置，无法调用AI功能")
+        
         messages = []
         
         if system_prompt:
