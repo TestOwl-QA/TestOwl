@@ -225,13 +225,16 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
     from starlette.applications import Starlette
     from starlette.routing import Route, Mount
     from starlette.responses import Response
-    from starlette.middleware import Middleware
-    from starlette.middleware.cors import CORSMiddleware
     from contextlib import asynccontextmanager
     import uvicorn
     
     handler = MCPHandler()
     sse_transport = SseServerTransport("/messages/")
+    
+    @asynccontextmanager
+    async def lifespan(app):
+        handler.init_agent("placeholder")  # SSE 模式使用用户提供的 Key
+        yield
     
     def get_api_key_from_request(request) -> Optional[str]:
         auth_header = request.headers.get("Authorization", "")
@@ -242,7 +245,6 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
     async def handle_sse(request):
         from starlette.requests import Request
         handler.user_api_key = get_api_key_from_request(request)
-        handler.init_agent(handler.user_api_key)  # 获取到 Key 后再初始化 Agent
         scope = request.scope
         receive = request.receive
         send = request._send
@@ -255,24 +257,11 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
         receive = request.receive
         send = request._send
         await sse_transport.handle_post_message(scope, receive, send)
-    from starlette.responses import Response
-    return Response()
-    
-    @asynccontextmanager
-    async def lifespan(app):
-        yield
-    
-    middleware = [
-        Middleware(CORSMiddleware, 
-                   allow_origins=["*"], 
-                   allow_methods=["*"], 
-                   allow_headers=["*"])
-    ]
     
     app = Starlette(lifespan=lifespan, routes=[
         Route("/sse", endpoint=handle_sse, methods=["GET"]),
         Route("/messages/", endpoint=handle_post_message, methods=["POST"]),
-    ], middleware=middleware)
+    ])
     
     print(f"🚀 MCP SSE 服务器启动于 http://{host}:{port}")
     print(f"   SSE 端点: http://{host}:{port}/sse")
