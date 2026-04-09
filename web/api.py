@@ -1,0 +1,452 @@
+
+# 智能模型选择
+def get_model_for_task(task_type, text_len):
+    """根据任务类型和复杂度选择模型"""
+    if task_type == 'chat':
+        return 'kimi-k2-turbo-preview'  # 对话用快速模型
+    elif task_type == 'check':
+        return 'kimi-k2-turbo-preview'  # 表检查用快速模型
+    elif task_type == 'analyze':
+        if text_len > 3000:
+            return 'kimi-k2-pro'  # 长文档用强模型
+        return 'kimi-k2-turbo-preview'
+    elif task_type == 'generate':
+        return 'kimi-k2-pro'  # 用例生成需要高质量
+    return 'kimi-k2-turbo-preview'
+
+import re
+from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import os
+import sys
+import secrets
+import time
+import tempfile
+import shutil
+from typing import Optional
+import asyncio
+
+sys.path.insert(0, '/root/testowl')
+from src.core.config import Config
+
+app = FastAPI(title="TestOwl API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+sessions = {}
+
+class SaveKeyRequest(BaseModel):
+    api_key: str
+
+class AnalyzeRequest(BaseModel):
+    text: str
+    session_token: Optional[str] = None
+
+class UrlRequest(BaseModel):
+    url: str
+
+def get_api_key(session_token: Optional[str]) -> Optional[str]:
+    if session_token and session_token in sessions:
+        if time.time() - sessions[session_token]['created'] < 7 * 24 * 3600:
+            return sessions[session_token]['api_key']
+        else:
+            del sessions[session_token]
+    return None
+
+def get_config_with_key(api_key: str):
+    """创建带有指定API key的config"""
+    config = Config('/root/testowl/config/config.yaml')
+    config.llm.api_key = api_key
+    return config
+
+def parse_file(file_path: str, suffix: str) -> str:
+    content = ""
+    if suffix == '.txt':
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+    elif suffix in ['.docx', '.doc']:
+        from docx import Document
+        doc = Document(file_path)
+        content = '\n'.join([p.text for p in doc.paragraphs if p.text.strip()])
+    elif suffix == '.pdf':
+        from pypdf import PdfReader
+        reader = PdfReader(file_path)
+        content = '\n'.join([page.extract_text() or '' for page in reader.pages])
+    elif suffix in ['.xlsx', '.xls']:
+        from openpyxl import load_workbook
+        wb = load_workbook(file_path, data_only=True)
+        texts = []
+        for sheet in wb.worksheets:
+            texts.append(f"=== {sheet.title} ===")
+            for row in sheet.iter_rows(values_only=True):
+                if any(cell for cell in row):
+                    texts.append(' | '.join(str(cell or '') for cell in row))
+        content = '\n'.join(texts)
+    elif suffix == '.pptx':
+        from pptx import Presentation
+        prs = Presentation(file_path)
+        texts = []
+        for i, slide in enumerate(prs.slides):
+            texts.append(f"=== 第{i+1}页 ===")
+            for shape in slide.shapes:
+                if hasattr(shape, 'text') and shape.text.strip():
+                    texts.append(shape.text)
+        content = '\n'.join(texts)
+    elif suffix in ['.png', '.jpg', '.jpeg', '.bmp', '.gif']:
+        try:
+            import pytesseract
+            from PIL import Image
+            img = Image.open(file_path)
+            content = pytesseract.image_to_string(img, lang='chi_sim+eng')
+        except:
+            content = "[图片OCR失败]"
+    return content.strip()
+
+def fetch_url(url: str) -> str:
+    try:
+        from bs4 import BeautifulSoup
+        import requests
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside']):
+            tag.decompose()
+        title = soup.title.string if soup.title else ''
+        text = soup.get_text(separator='\n', strip=True)
+        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        return f"标题: {title}\n\n" + '\n'.join(lines)
+    except Exception as e:
+        raise Exception(str(e))
+
+@app.post("/auth/save_key")
+async def save_key(req: SaveKeyRequest):
+    token = secrets.token_urlsafe(32)
+    sessions[token] = {'api_key': req.api_key, 'created': time.time()}
+    return {"success": True, "session_token": token}
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    try:
+        suffix = os.path.splitext(file.filename)[1].lower()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            shutil.copyfileobj(file.file, tmp)
+            tmp_path = tmp.name
+        content = parse_file(tmp_path, suffix)
+        os.unlink(tmp_path)
+        if not content:
+            return {"success": False, "error": "文件内容为空"}
+        return {"success": True, "text": content}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/fetch_url")
+async def fetch_url_endpoint(req: UrlRequest):
+    try:
+        content = fetch_url(req.url)
+        return {"success": True, "text": content}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post("/analyze")
+async def analyze(req: AnalyzeRequest):
+    key = get_api_key(req.session_token)
+    if not key:
+        return {"success": False, "error": "未配置API Key"}
+    try:
+        config = get_config_with_key(key)
+        from src.adapters.llm.client import LLMClient
+        client = LLMClient(config)
+        
+        text = req.text[:6000] if len(req.text) > 6000 else req.text
+        model = get_model_for_task('analyze', len(text))
+        config.llm.model = model
+        from src.adapters.llm.client import LLMClient
+        client = LLMClient(config)
+        
+        prompt = "分析需求，提取测试点、风险点、待确认问题。返回JSON: " + text + " 必须包含: {document_summary,test_points:[{id,title,description,priority,category}],risk_points:[{description,impact}],questions:[{question}]}"
+        result = await asyncio.wait_for(client.complete(prompt), timeout=90)
+        
+        import json
+        clean = result.strip()
+        if "```" in clean:
+            parts = clean.split("```")
+            clean = parts[1] if len(parts) > 1 else parts[0]
+            clean = clean.replace("json", "", 1).strip()
+        
+        return {"success": True, "data": json.loads(clean)}
+    except asyncio.TimeoutError:
+        return {"success": False, "error": "分析超时"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/generate_cases")
+async def generate_cases(req: AnalyzeRequest):
+    key = get_api_key(req.session_token)
+    if not key:
+        return {"success": False, "error": "未配置API Key"}
+    try:
+        config = get_config_with_key(key)
+        from src.adapters.llm.client import LLMClient
+        client = LLMClient(config)
+        
+        text = req.text[:5000] if len(req.text) > 5000 else req.text
+        model = get_model_for_task('generate', len(text))
+        config.llm.model = model
+        from src.adapters.llm.client import LLMClient
+        client = LLMClient(config)
+        
+        prompt = f"根据以下需求生成测试用例JSON: {text} 格式: test_cases数组"
+        result = await asyncio.wait_for(client.complete(prompt), timeout=90)
+        
+        import json
+        clean_result = result.strip()
+        if "```" in clean_result:
+            clean_result = clean_result.split("```")[1]
+            if clean_result.startswith("json"):
+                clean_result = clean_result[4:]
+        
+        return {"success": True, "data": json.loads(clean_result)}
+    except asyncio.TimeoutError:
+        return {"success": False, "error": "生成超时"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+from datetime import datetime
+from fastapi.responses import Response
+
+from datetime import datetime
+
+@app.post("/export")
+async def export_report(req: AnalyzeRequest):
+    key = get_api_key(req.session_token)
+    if not key:
+        return {"success": False, "error": "未配置API Key"}
+    try:
+        config = get_config_with_key(key)
+        from src.adapters.llm.client import LLMClient
+        client = LLMClient(config)
+        from src.adapters.llm.client import LLMClient
+        client = LLMClient(config)
+        
+        prompt = "生成测试分析报告(Markdown格式): " + req.text[:3000]
+        result = await asyncio.wait_for(client.complete(prompt), timeout=60)
+        
+        from datetime import datetime
+        return {
+            "success": True,
+            "filename": f"test_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
+            "content": result
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/chat")
+async def chat(req: dict):
+    token = req.get("session_token")
+    msgs = req.get("messages", [])
+    key = get_api_key(token)
+    if not key:
+        return {"success": False, "error": "未配置API Key"}
+    try:
+        config = get_config_with_key(key)
+        from src.adapters.llm.client import LLMClient
+        client = LLMClient(config)
+        prompt = "你是TestOwl测试助手，说话简洁自然。\n" + "\n".join([m["role"]+":"+m["content"] for m in msgs[-10:]])
+        result = await asyncio.wait_for(client.complete(prompt), timeout=60)
+        return {"success": True, "response": result}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/export_chat")
+async def export_chat(req: dict):
+    """导出对话记录为报告"""
+    token = req.get("session_token")
+    messages = req.get("messages", [])
+    fmt = req.get("format", "md")
+    
+    key = get_api_key(token)
+    if not key:
+        return {"success": False, "error": "未配置API Key"}
+    
+    try:
+        config = get_config_with_key(key)
+        from src.adapters.llm.client import LLMClient
+        client = LLMClient(config)
+        
+        # 构建对话内容
+        chat_text = "\n".join([f"{m['role']}: {m['content']}" for m in messages])
+        
+        if fmt == "html":
+            prompt = f"将以下对话整理为HTML格式的测试报告，包含样式：\n{chat_text}"
+        elif fmt == "txt":
+            prompt = f"将以下对话整理为纯文本格式的测试报告：\n{chat_text}"
+        else:
+            prompt = f"将以下对话整理为Markdown格式的测试报告，包含标题、测试要点、结论：\n{chat_text}"
+        
+        result = await asyncio.wait_for(client.complete(prompt), timeout=60)
+        
+        from datetime import datetime
+        ext = {"md": "md", "txt": "txt", "html": "html"}.get(fmt, "md")
+        
+        return {
+            "success": True,
+            "filename": f"chat_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}",
+            "content": result
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+import base64
+from datetime import datetime
+from io import BytesIO
+
+@app.post("/export_single")
+async def export_single(req: dict):
+    """导出单条消息"""
+    key = get_api_key(req.get("session_token", ""))
+    if not key:
+        return {"success": False, "error": "未配置API Key"}
+    
+    content = req.get("content", "")
+    fmt = req.get("format", "md")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    try:
+        if fmt == "md":
+            filename = f"testowl_{timestamp}.md"
+            file_bytes = content.encode('utf-8')
+        
+        elif fmt == "pdf":
+            from reportlab.lib.pagesizes import A4
+            from reportlab.pdfgen import canvas
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+            
+            # 注册中文字体（如果有的话）
+            try:
+                pdfmetrics.registerFont(TTFont('SimSun', '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc'))
+                font = 'SimSun'
+            except:
+                font = 'Helvetica'
+            
+            buffer = BytesIO()
+            c = canvas.Canvas(buffer, pagesize=A4)
+            c.setFont(font, 10)
+            
+            # 简单的文本换行
+            y = 800
+            for line in content.split('\n'):
+                if y < 50:
+                    c.showPage()
+                    y = 800
+                c.drawString(50, y, line[:80])
+                y -= 15
+            
+            c.save()
+            file_bytes = buffer.getvalue()
+            filename = f"testowl_{timestamp}.pdf"
+        
+        elif fmt == "xlsx":
+            from openpyxl import Workbook
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "导出内容"
+            for i, line in enumerate(content.split('\n'), 1):
+                ws.cell(row=i, column=1, value=line)
+            
+            buffer = BytesIO()
+            wb.save(buffer)
+            file_bytes = buffer.getvalue()
+            filename = f"testowl_{timestamp}.xlsx"
+        
+        elif fmt == "docx":
+            from docx import Document
+            doc = Document()
+            for line in content.split('\n'):
+                doc.add_paragraph(line)
+            
+            buffer = BytesIO()
+            doc.save(buffer)
+            file_bytes = buffer.getvalue()
+            filename = f"testowl_{timestamp}.docx"
+        
+        else:
+            return {"success": False, "error": "不支持的格式"}
+        
+        return {
+            "success": True,
+            "file": base64.b64encode(file_bytes).decode('utf-8'),
+            "filename": filename
+        }
+    
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+import base64
+from datetime import datetime
+from io import BytesIO
+
+@app.post("/export_single")
+async def export_single(req: dict):
+    key = get_api_key(req.get("session_token", ""))
+    if not key:
+        return {"success": False, "error": "未配置API Key"}
+    
+    content = req.get("content", "")
+    fmt = req.get("format", "md")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    try:
+        if fmt == "md":
+            return {"success": True, "file": base64.b64encode(content.encode()).decode(), "filename": f"testowl_{ts}.md"}
+        
+        elif fmt == "pdf":
+            from reportlab.lib.pagesizes import A4
+            from reportlab.pdfgen import canvas
+            buf = BytesIO()
+            c = canvas.Canvas(buf, pagesize=A4)
+            y = 800
+            for line in content.split('\n'):
+                if y < 50: c.showPage(); y = 800
+                c.drawString(50, y, line[:80][:200])
+                y -= 15
+            c.save()
+            return {"success": True, "file": base64.b64encode(buf.getvalue()).decode(), "filename": f"testowl_{ts}.pdf"}
+        
+        elif fmt == "xlsx":
+            from openpyxl import Workbook
+            wb = Workbook()
+            ws = wb.active
+            for i, line in enumerate(content.split('\n'), 1):
+                ws.cell(row=i, column=1, value=line[:32000])
+            buf = BytesIO()
+            wb.save(buf)
+            return {"success": True, "file": base64.b64encode(buf.getvalue()).decode(), "filename": f"testowl_{ts}.xlsx"}
+        
+        elif fmt == "docx":
+            from docx import Document
+            doc = Document()
+            for line in content.split('\n'):
+                doc.add_paragraph(line)
+            buf = BytesIO()
+            doc.save(buf)
+            return {"success": True, "file": base64.b64encode(buf.getvalue()).decode(), "filename": f"testowl_{ts}.docx"}
+        
+        return {"success": False, "error": "不支持的格式"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

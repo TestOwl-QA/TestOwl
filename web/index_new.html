@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>TestOwl</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #FAF8F5; display: flex; min-height: 100vh; }
+    
+    .sidebar { width: 200px; background: #F5F0E8; padding: 20px; border-right: 1px solid #E0D8CC; }
+    .sidebar h1 { font-size: 18px; color: #5D4E37; margin-bottom: 30px; }
+    .nav-item { padding: 10px 12px; margin: 4px 0; border-radius: 6px; cursor: pointer; color: #4A4A4A; font-size: 14px; }
+    .nav-item:hover { background: #EBE4D8; }
+    .nav-item.active { background: #E8E0D0; color: #5D4E37; font-weight: 500; }
+    .nav-item svg { width: 16px; height: 16px; margin-right: 8px; vertical-align: middle; stroke: currentColor; fill: none; stroke-width: 1.5; }
+    
+    .main { flex: 1; padding: 30px; overflow-y: auto; }
+    .section { display: none; }
+    .section.active { display: block; }
+    
+    h2 { color: #4A4A4A; font-size: 16px; margin-bottom: 20px; }
+    
+    .input-group { background: white; border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid #E8E0D0; }
+    .input-group label { display: block; color: #5D4E37; font-size: 13px; margin-bottom: 8px; font-weight: 500; }
+    
+    textarea { width: 100%; height: 120px; border: 1px solid #D8D0C0; border-radius: 4px; padding: 10px; font-size: 13px; resize: vertical; }
+    textarea:focus { outline: none; border-color: #8B7355; }
+    
+    input[type="text"], input[type="url"] { width: 100%; padding: 10px; border: 1px solid #D8D0C0; border-radius: 4px; font-size: 13px; }
+    input:focus { outline: none; border-color: #8B7355; }
+    
+    input[type="file"] { font-size: 13px; }
+    
+    .btn { padding: 10px 20px; background: #5D4E37; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; margin-right: 8px; }
+    .btn:hover { background: #4A3E2D; }
+    .btn:disabled { background: #A99A85; cursor: not-allowed; }
+    .btn-outline { background: white; color: #5D4E37; border: 1px solid #D8D0C0; }
+    .btn-outline:hover { background: #F5F0E8; }
+    
+    .result { background: white; border-radius: 8px; padding: 20px; margin-top: 20px; border: 1px solid #E8E0D0; }
+    .result h3 { color: #5D4E37; font-size: 14px; margin-bottom: 12px; }
+    .result pre { white-space: pre-wrap; font-size: 13px; line-height: 1.6; color: #4A4A4A; }
+    
+    .test-points { margin-top: 10px; }
+    .test-point { padding: 10px; background: #F8F5F0; border-radius: 4px; margin: 8px 0; font-size: 13px; }
+    .test-point strong { color: #5D4E37; }
+    
+    .settings-panel { background: white; border-radius: 8px; padding: 20px; border: 1px solid #E8E0D0; }
+    .settings-panel h3 { color: #5D4E37; font-size: 14px; margin-bottom: 16px; }
+    
+    .status { font-size: 12px; padding: 4px 8px; border-radius: 4px; display: inline-block; }
+    .status.ok { background: #E8F5E9; color: #2E7D32; }
+    .status.error { background: #FFEBEE; color: #C62828; }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h1>🦉 TestOwl</h1>
+    <div class="nav-item active" onclick="showSection('analyze')">
+      <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      需求分析
+    </div>
+    <div class="nav-item" onclick="showSection('generate')">
+      <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      生成用例
+    </div>
+    <div class="nav-item" onclick="showSection('settings')">
+      <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      设置
+    </div>
+  </div>
+  
+  <div class="main">
+    <div id="analyze" class="section active">
+      <h2>需求分析</h2>
+      
+      <div class="input-group">
+        <label>📝 直接输入文本</label>
+        <textarea id="textInput" placeholder="粘贴需求文档或描述..."></textarea>
+      </div>
+      
+      <div class="input-group">
+        <label>📎 上传文件 (txt/docx/pdf/xlsx/pptx/png/jpg)</label>
+        <input type="file" id="fileInput" accept=".txt,.docx,.pdf,.xlsx,.pptx,.png,.jpg,.jpeg">
+      </div>
+      
+      <div class="input-group">
+        <label>🔗 读取URL</label>
+        <input type="url" id="urlInput" placeholder="https://...">
+      </div>
+      
+      <button class="btn" onclick="analyze()">分析</button>
+      <button class="btn btn-outline" onclick="downloadReport()" id="downloadBtn" style="display:none">📥 下载报告</button>
+      
+      <div class="result" id="result" style="display:none">
+        <h3>分析结果</h3>
+        <div id="resultContent"></div>
+      </div>
+    </div>
+    
+    <div id="generate" class="section">
+      <h2>生成测试用例</h2>
+      <div class="input-group">
+        <label>📝 需求描述</label>
+        <textarea id="genInput" placeholder="输入需求描述..."></textarea>
+      </div>
+      <button class="btn" onclick="generateCases()">生成</button>
+      <div class="result" id="genResult" style="display:none">
+        <h3>测试用例</h3>
+        <div id="genContent"></div>
+      </div>
+    </div>
+    
+    <div id="settings" class="section">
+      <h2>设置</h2>
+      <div class="settings-panel">
+        <h3>API Key</h3>
+        <input type="text" id="apiKeyInput" placeholder="输入API Key" style="width: 300px">
+        <button class="btn" onclick="saveKey()" style="margin-left: 10px">保存</button>
+        <p id="keyStatus" style="margin-top: 10px; font-size: 12px; color: #666"></p>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API_BASE = 'http://121.41.36.197:8081';
+let lastAnalyzeText = '';
+
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+async function saveKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key) return alert('请输入API Key');
+  
+  try {
+    const res = await fetch(`${API_BASE}/auth/save_key`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({api_key: key})
+    });
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('session_token', data.session_token);
+      document.getElementById('keyStatus').innerHTML = '<span class="status ok">已保存</span>';
+    }
+  } catch (e) {
+    document.getElementById('keyStatus').innerHTML = '<span class="status error">保存失败</span>';
+  }
+}
+
+async function analyze() {
+  const token = localStorage.getItem('session_token');
+  if (!token) return alert('请先在设置中保存API Key');
+  
+  let text = document.getElementById('textInput').value.trim();
+  
+  // 文件上传
+  const file = document.getElementById('fileInput').files[0];
+  if (file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('session_token', token);
+    
+    document.getElementById('resultContent').textContent = '解析文件中...';
+    document.getElementById('result').style.display = 'block';
+    
+    const res = await fetch(`${API_BASE}/upload`, {method: 'POST', body: fd});
+    const data = await res.json();
+    if (data.success) text = data.text;
+    else return document.getElementById('resultContent').textContent = '文件解析失败: ' + data.error;
+  }
+  
+  // URL读取
+  const url = document.getElementById('urlInput').value.trim();
+  if (url && !file) {
+    document.getElementById('resultContent').textContent = '读取URL中...';
+    document.getElementById('result').style.display = 'block';
+    
+    const res = await fetch(`${API_BASE}/read_url`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url, session_token: token})
+    });
+    const data = await res.json();
+    if (data.success) text = data.text;
+    else return document.getElementById('resultContent').textContent = 'URL读取失败: ' + data.error;
+  }
+  
+  if (!text) return alert('请输入内容、上传文件或填写URL');
+  lastAnalyzeText = text;
+  
+  document.getElementById('resultContent').textContent = '分析中...';
+  document.getElementById('result').style.display = 'block';
+  
+  try {
+    const res = await fetch(`${API_BASE}/analyze`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text, session_token: token})
+    });
+    const data = await res.json();
+    
+    if (data.success && data.data) {
+      renderResult(data.data);
+      document.getElementById('downloadBtn').style.display = 'inline-block';
+    } else {
+      document.getElementById('resultContent').textContent = data.error || '分析失败';
+    }
+  } catch (e) {
+    document.getElementById('resultContent').textContent = '请求失败: ' + e.message;
+  }
+}
+
+function renderResult(data) {
+  let html = '';
+  
+  if (data.document_summary) {
+    html += `<p><strong>摘要:</strong> ${data.document_summary}</p>`;
+  }
+  
+  if (data.test_points && data.test_points.length) {
+    html += '<div class="test-points"><h4>测试点</h4>';
+    data.test_points.forEach(p => {
+      html += `<div class="test-point">
+        <strong>#${p.id || ''} ${p.title || ''}</strong>
+        <br>${p.description || ''}
+        <br><small>优先级: ${p.priority || ''} | 类型: ${p.category || ''}</small>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  
+  if (data.risk_points && data.risk_points.length) {
+    html += '<h4 style="margin-top:15px">风险点</h4>';
+    data.risk_points.forEach(r => {
+      html += `<div class="test-point" style="background:#FFF8E1">${r.description || ''}</div>`;
+    });
+  }
+  
+  document.getElementById('resultContent').innerHTML = html;
+}
+
+async function generateCases() {
+  const token = localStorage.getItem('session_token');
+  if (!token) return alert('请先保存API Key');
+  
+  const text = document.getElementById('genInput').value.trim();
+  if (!text) return alert('请输入需求描述');
+  
+  document.getElementById('genContent').textContent = '生成中...';
+  document.getElementById('genResult').style.display = 'block';
+  
+  try {
+    const res = await fetch(`${API_BASE}/generate_cases`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text, session_token: token})
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      document.getElementById('genContent').textContent = JSON.stringify(data.data, null, 2);
+    } else {
+      document.getElementById('genContent').textContent = data.error || '生成失败';
+    }
+  } catch (e) {
+    document.getElementById('genContent').textContent = '请求失败: ' + e.message;
+  }
+}
+
+async function downloadReport() {
+  const token = localStorage.getItem('session_token');
+  if (!token || !lastAnalyzeText) return;
+  
+  const btn = document.getElementById('downloadBtn');
+  btn.textContent = '生成中...';
+  btn.disabled = true;
+  
+  try {
+    const res = await fetch(`${API_BASE}/export`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: lastAnalyzeText, session_token: token})
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      const blob = new Blob([data.content], {type: 'text/markdown'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = data.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      alert('导出失败: ' + data.error);
+    }
+  } catch (e) {
+    alert('导出失败: ' + e.message);
+  }
+  
+  btn.textContent = '📥 下载报告';
+  btn.disabled = false;
+}
+
+// 检查已保存的key
+window.onload = () => {
+  if (localStorage.getItem('session_token')) {
+    document.getElementById('keyStatus').innerHTML = '<span class="status ok">已配置</span>';
+  }
+};
+</script>
+</body>
+</html>
