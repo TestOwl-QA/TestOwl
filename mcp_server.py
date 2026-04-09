@@ -242,10 +242,12 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
             return auth_header[7:]
         return request.headers.get("X-API-Key", "")
     
-    async def handle_sse(scope, receive, send):
+    async def handle_sse(request):
         from starlette.requests import Request
-        request = Request(scope, receive)
         handler.user_api_key = get_api_key_from_request(request)
+        scope = request.scope
+        receive = request.receive
+        send = request._send
         async with sse_transport.connect_sse(scope, receive, send) as streams:
             await handler.server.run(streams[0], streams[1], handler.server.create_initialization_options())
     
@@ -260,7 +262,9 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
     
     print(f"🚀 MCP SSE 服务器启动于 http://{host}:{port}")
     print(f"   SSE 端点: http://{host}:{port}/sse")
-    uvicorn.run(app, host=host, port=port)
+    config = uvicorn.Config(app, host=host, port=port, loop="asyncio")
+    server = uvicorn.Server(config)
+    await server.serve()
 
 
 # ==================== 主入口 ====================
