@@ -1,6 +1,5 @@
 """
 技能基类模块
-
 定义所有技能的通用接口和基础功能
 """
 
@@ -50,11 +49,13 @@ class SkillContext:
         config: 配置对象
         params: 执行参数
         history: 历史记录
+        knowledge_service: 知识库服务（可选）
     """
     agent: "GameTestAgent"
     config: "Config"
     params: Dict[str, Any] = field(default_factory=dict)
     history: List[Dict[str, Any]] = field(default_factory=list)
+    knowledge_service: Optional[Any] = None  # 知识库服务，可选
     
     def get_param(self, key: str, default: Any = None) -> Any:
         """获取参数值"""
@@ -63,6 +64,26 @@ class SkillContext:
     def set_param(self, key: str, value: Any):
         """设置参数值"""
         self.params[key] = value
+    
+    def get_knowledge_context(self, query: str, max_length: int = 2000) -> str:
+        """
+        获取知识库上下文（便捷方法）
+        
+        Args:
+            query: 查询关键词
+            max_length: 最大长度
+        
+        Returns:
+            知识库上下文文本，无知识库时返回空字符串
+        """
+        if self.knowledge_service is None:
+            return ""
+        
+        try:
+            result = self.knowledge_service.search(query)
+            return result.to_context(max_length)
+        except Exception:
+            return ""
 
 
 class BaseSkill(ABC):
@@ -70,31 +91,9 @@ class BaseSkill(ABC):
     技能基类
     
     所有技能都应继承此类，并实现 execute 方法
-    
-    使用示例：
-        ```python
-        class MySkill(BaseSkill):
-            @property
-            def name(self) -> str:
-                return "my_skill"
-            
-            @property
-            def description(self) -> str:
-                return "我的技能描述"
-            
-            async def execute(self, context: SkillContext) -> SkillResult:
-                # 实现技能逻辑
-                return SkillResult.ok(data="结果")
-        ```
     """
     
     def __init__(self, config: "Config"):
-        """
-        初始化技能
-        
-        Args:
-            config: 配置对象
-        """
         self.config = config
         self._initialized = False
     
@@ -112,17 +111,7 @@ class BaseSkill(ABC):
     
     @property
     def parameters(self) -> List[Dict[str, Any]]:
-        """
-        技能参数定义
-        
-        Returns:
-            参数定义列表，每个参数包含：
-            - name: 参数名
-            - type: 参数类型
-            - required: 是否必填
-            - description: 参数描述
-            - default: 默认值
-        """
+        """技能参数定义"""
         return []
     
     async def initialize(self):
@@ -131,15 +120,7 @@ class BaseSkill(ABC):
     
     @abstractmethod
     async def execute(self, context: SkillContext) -> SkillResult:
-        """
-        执行技能
-        
-        Args:
-            context: 执行上下文
-        
-        Returns:
-            执行结果
-        """
+        """执行技能"""
         pass
     
     async def cleanup(self):
@@ -147,15 +128,7 @@ class BaseSkill(ABC):
         pass
     
     def validate_params(self, context: SkillContext) -> Optional[str]:
-        """
-        验证参数
-        
-        Args:
-            context: 执行上下文
-        
-        Returns:
-            验证失败返回错误信息，成功返回None
-        """
+        """验证参数"""
         for param in self.parameters:
             name = param.get("name")
             required = param.get("required", False)

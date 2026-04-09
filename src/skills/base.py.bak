@@ -1,0 +1,169 @@
+﻿"""
+鎶€鑳藉熀绫绘ā鍧?
+
+瀹氫箟鎵€鏈夋妧鑳界殑閫氱敤鎺ュ彛鍜屽熀纭€鍔熻兘
+"""
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.core.agent import GameTestAgent
+    from src.core.config import Config
+
+
+@dataclass
+class SkillResult:
+    """
+    鎶€鑳芥墽琛岀粨鏋?
+    
+    Attributes:
+        success: 鏄惁鎴愬姛
+        data: 杩斿洖鏁版嵁
+        error: 閿欒淇℃伅
+        metadata: 棰濆鍏冩暟鎹?
+    """
+    success: bool = True
+    data: Any = None
+    error: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    @classmethod
+    def ok(cls, data: Any = None, metadata: Dict[str, Any] = None) -> "SkillResult":
+        """鍒涘缓鎴愬姛缁撴灉"""
+        return cls(success=True, data=data, metadata=metadata or {})
+    
+    @classmethod
+    def fail(cls, error: str, metadata: Dict[str, Any] = None) -> "SkillResult":
+        """鍒涘缓澶辫触缁撴灉"""
+        return cls(success=False, error=error, metadata=metadata or {})
+
+
+@dataclass
+class SkillContext:
+    """
+    鎶€鑳芥墽琛屼笂涓嬫枃
+    
+    Attributes:
+        agent: Agent瀹炰緥
+        config: 閰嶇疆瀵硅薄
+        params: 鎵ц鍙傛暟
+        history: 鍘嗗彶璁板綍
+    """
+    agent: "GameTestAgent"
+    config: "Config"
+    params: Dict[str, Any] = field(default_factory=dict)
+    history: List[Dict[str, Any]] = field(default_factory=list)
+    
+    def get_param(self, key: str, default: Any = None) -> Any:
+        """鑾峰彇鍙傛暟鍊?""
+        return self.params.get(key, default)
+    
+    def set_param(self, key: str, value: Any):
+        """璁剧疆鍙傛暟鍊?""
+        self.params[key] = value
+
+
+class BaseSkill(ABC):
+    """
+    鎶€鑳藉熀绫?
+    
+    鎵€鏈夋妧鑳介兘搴旂户鎵挎绫伙紝骞跺疄鐜?execute 鏂规硶
+    
+    浣跨敤绀轰緥锛?
+        ```python
+        class MySkill(BaseSkill):
+            @property
+            def name(self) -> str:
+                return "my_skill"
+            
+            @property
+            def description(self) -> str:
+                return "鎴戠殑鎶€鑳芥弿杩?
+            
+            async def execute(self, context: SkillContext) -> SkillResult:
+                # 瀹炵幇鎶€鑳介€昏緫
+                return SkillResult.ok(data="缁撴灉")
+        ```
+    """
+    
+    def __init__(self, config: "Config"):
+        """
+        鍒濆鍖栨妧鑳?
+        
+        Args:
+            config: 閰嶇疆瀵硅薄
+        """
+        self.config = config
+        self._initialized = False
+    
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """鎶€鑳藉悕绉帮紙鍞竴鏍囪瘑锛?""
+        pass
+    
+    @property
+    @abstractmethod
+    def description(self) -> str:
+        """鎶€鑳芥弿杩?""
+        pass
+    
+    @property
+    def parameters(self) -> List[Dict[str, Any]]:
+        """
+        鎶€鑳藉弬鏁板畾涔?
+        
+        Returns:
+            鍙傛暟瀹氫箟鍒楄〃锛屾瘡涓弬鏁板寘鍚細
+            - name: 鍙傛暟鍚?
+            - type: 鍙傛暟绫诲瀷
+            - required: 鏄惁蹇呭～
+            - description: 鍙傛暟鎻忚堪
+            - default: 榛樿鍊?
+        """
+        return []
+    
+    async def initialize(self):
+        """寮傛鍒濆鍖栵紙瀛愮被鍙噸鍐欙級"""
+        self._initialized = True
+    
+    @abstractmethod
+    async def execute(self, context: SkillContext) -> SkillResult:
+        """
+        鎵ц鎶€鑳?
+        
+        Args:
+            context: 鎵ц涓婁笅鏂?
+        
+        Returns:
+            鎵ц缁撴灉
+        """
+        pass
+    
+    async def cleanup(self):
+        """娓呯悊璧勬簮锛堝瓙绫诲彲閲嶅啓锛?""
+        pass
+    
+    def validate_params(self, context: SkillContext) -> Optional[str]:
+        """
+        楠岃瘉鍙傛暟
+        
+        Args:
+            context: 鎵ц涓婁笅鏂?
+        
+        Returns:
+            楠岃瘉澶辫触杩斿洖閿欒淇℃伅锛屾垚鍔熻繑鍥濶one
+        """
+        for param in self.parameters:
+            name = param.get("name")
+            required = param.get("required", False)
+            
+            if required and name not in context.params:
+                return f"缂哄皯蹇呭～鍙傛暟: {name}"
+        
+        return None
+    
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}(name='{self.name}')>"

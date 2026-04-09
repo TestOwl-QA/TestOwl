@@ -9,9 +9,8 @@
 
 import json
 from typing import Any, Dict, List
-
 from src.core.config import Config
-from src.core.token_optimizer import TokenOptimizer, TokenUsage
+from src.core.token_optimizer import TokenOptimizer
 from src.skills.base import BaseSkill, SkillContext, SkillResult
 from src.skills.document_analyzer.models import AnalysisResult, TestPoint, Priority
 from src.adapters.document.parser import DocumentParser
@@ -22,34 +21,31 @@ logger = get_logger(__name__)
 
 
 class DocumentAnalyzerSkill(BaseSkill):
-    """
-    需求文档分析技能
-    
-    使用示例：
-        ```python
-        skill = DocumentAnalyzerSkill(config)
-        context = SkillContext(
-            agent=agent,
-            config=config,
-            params={"file_path": "需求文档.docx"}
-        )
-        result = await skill.execute(context)
-        ```
-    """
+    """需求文档分析技能"""
     
     def __init__(self, config: Config):
         super().__init__(config)
         self.document_parser = DocumentParser(config)
         self.llm_client = LLMClient(config)
+        
         # 初始化Token优化器
         self.token_optimizer = TokenOptimizer(config={
             'cache_max_entries': 1000,
             'cache_ttl_hours': 24,
             'summary_ratio': 0.3,
-            'chunk_size': 6000,  # 根据模型上下文调整
+            'chunk_size': 6000,
             'chunk_overlap': 500,
             'max_chunks': 5,
         })
+        
+        # 初始化知识库服务（可选）
+        try:
+            from src.services.knowledge_service import get_knowledge_service
+            self.knowledge_service = get_knowledge_service()
+            logger.info("知识库服务已加载")
+        except Exception as e:
+            logger.warning(f"知识库服务初始化失败: {e}")
+            self.knowledge_service = None
     
     @property
     def name(self) -> str:
@@ -90,23 +86,13 @@ class DocumentAnalyzerSkill(BaseSkill):
         ]
     
     async def execute(self, context: SkillContext) -> SkillResult:
-        """
-        执行文档分析
-        
-        Args:
-            context: 包含 file_path、content 或 doc_url
-        
-        Returns:
-            AnalysisResult 对象
-        """
-        # 1. 获取文档内容
+        """执行文档分析"""
         content = await self._get_document_content(context)
         if not content:
             return SkillResult.fail("无法获取文档内容")
         
         logger.info(f"Document content length: {len(content)} characters")
         
-        # 2. 使用LLM分析文档
         try:
             analysis_result = await self._analyze_with_llm(content, context)
             return SkillResult.ok(data=analysis_result)
@@ -115,47 +101,30 @@ class DocumentAnalyzerSkill(BaseSkill):
             return SkillResult.fail(f"文档分析失败: {str(e)}")
     
     async def _get_document_content(self, context: SkillContext) -> str:
-        """
-        获取文档内容
-        
-        支持多种来源：本地文件、直接文本、云文档URL
-        """
+        """获取文档内容"""
         file_path = context.get_param("file_path")
         content = context.get_param("content")
         doc_url = context.get_param("doc_url")
         
-        # 优先级：content > file_path > doc_url
         if content:
             return content
-        
         if file_path:
             return self.document_parser.parse_file(file_path)
-        
         if doc_url:
             return await self.document_parser.parse_url(doc_url)
         
         return ""
     
     async def _analyze_with_llm(
-        self, 
-        content: str, 
-        context: SkillContext
+        self, content: str, context: SkillContext
     ) -> AnalysisResult:
-        """
-        使用LLM分析文档内容（Token优化版本）
-        
-        使用TokenOptimizer进行缓存、摘要和分块处理
-        """
+        """使用LLM分析文档内容（Token优化版本）"""
         focus_areas = context.get_param("focus_areas", [])
         
-        # 生成缓存key（基于内容和参数）
         cache_key = self.token_optimizer.generate_cache_key(
-            content, 
-            focus_areas=focus_areas,
-            version="v2"  # 版本号，便于后续升级时刷新缓存
+            content, focus_areas=focus_areas, version="v3"
         )
         
-        # 使用优化器处理大文档
         logger.info(f"Starting optimized analysis for {len(content)} chars document")
         
         result_data, usage = await self.token_optimizer.process_large_document(
@@ -165,34 +134,39 @@ class DocumentAnalyzerSkill(BaseSkill):
             cache_key=cache_key
         )
         
-        # 记录Token使用情况
         logger.info(f"Token usage - Input: {usage.input_tokens}, Output: {usage.output_tokens}")
         
-        # 获取优化统计
         stats = self.token_optimizer.get_stats()
         logger.info(f"Cache hit rate: {stats['cache_stats']['hit_rate']}")
-        logger.info(f"Total saved by cache: {stats['saved_by_cache']} tokens")
         
-        # 合并分块结果
         merged_data = self._merge_chunk_results(result_data)
         
-        # 构建最终结果
         return self._build_analysis_result(merged_data, content)
     
     async def _analyze_chunk(
-        self, 
-        content: str, 
-        focus_areas: List[str]
+        self, content: str, focus_areas: List[str]
     ) -> Dict:
-        """
-        分析单个文档块
-        """
+        """分析单个文档块"""
+        
+        # 获取知识库上下文
+        knowledge_context = ""
+        if self.knowledge_service:
+            try:
+                query_keywords = " ".join(focus_areas) if focus_areas else "游戏测试 数值 关卡"
+                result = self.knowledge_service.search(query_keywords, top_k=2)
+                knowledge_context = result.to_context(max_length=1500)
+                if knowledge_context:
+                    logger.info(f"知识库检索成功，相关度: {result.relevance_score:.2f}")
+            except Exception as e:
+                logger.warning(f"知识库检索失败: {e}")
+        
         focus_hint = f"\n重点关注领域: {', '.join(focus_areas)}" if focus_areas else ""
+        knowledge_hint = f"\n\n{knowledge_context}" if knowledge_context else ""
         
         prompt = f"""你是一个专业的游戏测试专家。请分析以下需求文档片段，提取测试要点。
+{knowledge_hint}
 
 ## 分析要求
-
 1. **文档摘要**：用1-2句话概括该片段核心内容
 2. **测试要点提取**：识别所有需要测试的功能点、规则、边界条件
    - 每个测试要点包含：标题、详细描述、优先级(P0/P1/P2/P3)、类别
@@ -206,7 +180,6 @@ class DocumentAnalyzerSkill(BaseSkill):
 4. **待确认问题**：列出需求中不明确的问题{focus_hint}
 
 ## 输出格式
-
 请以JSON格式输出：
 ```json
 {{
@@ -230,18 +203,16 @@ class DocumentAnalyzerSkill(BaseSkill):
 ```
 
 ## 需求文档片段
-
 {content}
 
 请直接输出JSON。"""
-
+        
         try:
             response = await self.llm_client.complete(prompt)
             json_str = self._extract_json(response)
             return json.loads(json_str)
         except Exception as e:
             logger.error(f"Chunk analysis failed: {e}")
-            # 返回空结果，不中断整体流程
             return {
                 "document_summary": "",
                 "test_points": [],
@@ -250,9 +221,7 @@ class DocumentAnalyzerSkill(BaseSkill):
             }
     
     def _merge_chunk_results(self, results: List[Dict]) -> Dict:
-        """
-        合并多个分块的分析结果
-        """
+        """合并多个块的分析结果"""
         merged = {
             "document_summary": "",
             "test_points": [],
@@ -261,36 +230,29 @@ class DocumentAnalyzerSkill(BaseSkill):
         }
         
         summaries = []
-        
         for i, result in enumerate(results):
-            # 收集摘要
             if result.get("document_summary"):
                 summaries.append(result["document_summary"])
             
-            # 合并测试要点（重新编号）
             for tp in result.get("test_points", []):
                 tp["id"] = f"TP{len(merged['test_points'])+1:03d}"
                 merged["test_points"].append(tp)
             
-            # 合并风险点（去重）
             for rp in result.get("risk_points", []):
                 if rp not in merged["risk_points"]:
                     merged["risk_points"].append(rp)
             
-            # 合并问题（去重）
             for q in result.get("questions", []):
                 if q not in merged["questions"]:
                     merged["questions"].append(q)
         
-        # 合并摘要
         if summaries:
-            merged["document_summary"] = " ".join(summaries[:3])  # 最多取3个摘要
+            merged["document_summary"] = " ".join(summaries[:3])
         
         return merged
     
     def _extract_json(self, text: str) -> str:
         """从文本中提取JSON部分"""
-        # 尝试找到JSON代码块
         if "```json" in text:
             start = text.find("```json") + 7
             end = text.find("```", start)
@@ -301,7 +263,6 @@ class DocumentAnalyzerSkill(BaseSkill):
             end = text.find("```", start)
             return text[start:end].strip()
         
-        # 尝试找到JSON对象
         start = text.find("{")
         end = text.rfind("}")
         if start != -1 and end != -1:
@@ -310,14 +271,11 @@ class DocumentAnalyzerSkill(BaseSkill):
         return text.strip()
     
     def _build_analysis_result(
-        self, 
-        data: Dict, 
-        original_content: str
+        self, data: Dict, original_content: str
     ) -> AnalysisResult:
-        """从解析的数据构建AnalysisResult对象"""
-        
-        # 解析测试要点
+        """构建最终分析结果"""
         test_points = []
+        
         for i, tp_data in enumerate(data.get("test_points", [])):
             try:
                 priority = Priority(tp_data.get("priority", "P2"))
@@ -337,7 +295,6 @@ class DocumentAnalyzerSkill(BaseSkill):
             )
             test_points.append(test_point)
         
-        # 统计类别
         categories = {}
         for tp in test_points:
             categories[tp.category] = categories.get(tp.category, 0) + 1
@@ -358,10 +315,10 @@ class DocumentAnalyzerSkill(BaseSkill):
     def _extract_title(self, content: str) -> str:
         """从内容中提取标题"""
         lines = content.strip().split('\n')
-        for line in lines[:10]:  # 检查前10行
+        for line in lines[:10]:
             line = line.strip()
             if line and not line.startswith('#'):
-                return line[:100]  # 限制长度
+                return line[:100]
             if line.startswith('# '):
                 return line[2:100]
         return "未命名文档"
