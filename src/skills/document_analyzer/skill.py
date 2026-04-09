@@ -11,6 +11,7 @@ import json
 from typing import Any, Dict, List
 
 from src.core.config import Config
+from src.core.token_optimizer import TokenOptimizer, TokenUsage
 from src.skills.base import BaseSkill, SkillContext, SkillResult
 from src.skills.document_analyzer.models import AnalysisResult, TestPoint, Priority
 from src.adapters.document.parser import DocumentParser
@@ -40,6 +41,15 @@ class DocumentAnalyzerSkill(BaseSkill):
         super().__init__(config)
         self.document_parser = DocumentParser(config)
         self.llm_client = LLMClient(config)
+        # 初始化Token优化器
+        self.token_optimizer = TokenOptimizer(config={
+            'cache_max_entries': 1000,
+            'cache_ttl_hours': 24,
+            'summary_ratio': 0.3,
+            'chunk_size': 6000,  # 根据模型上下文调整
+            'chunk_overlap': 500,
+            'max_chunks': 5,
+        })
     
     @property
     def name(self) -> str:
@@ -132,35 +142,75 @@ class DocumentAnalyzerSkill(BaseSkill):
         context: SkillContext
     ) -> AnalysisResult:
         """
-        使用LLM分析文档内容
+        使用LLM分析文档内容（Token优化版本）
         
-        构建精心设计的Prompt，让LLM提取测试要点
+        使用TokenOptimizer进行缓存、摘要和分块处理
         """
         focus_areas = context.get_param("focus_areas", [])
+        
+        # 生成缓存key（基于内容和参数）
+        cache_key = self.token_optimizer.generate_cache_key(
+            content, 
+            focus_areas=focus_areas,
+            version="v2"  # 版本号，便于后续升级时刷新缓存
+        )
+        
+        # 使用优化器处理大文档
+        logger.info(f"Starting optimized analysis for {len(content)} chars document")
+        
+        result_data, usage = await self.token_optimizer.process_large_document(
+            content=content,
+            chunk_processor=lambda chunk: self._analyze_chunk(chunk, focus_areas),
+            merge_strategy="aggregate",
+            cache_key=cache_key
+        )
+        
+        # 记录Token使用情况
+        logger.info(f"Token usage - Input: {usage.input_tokens}, Output: {usage.output_tokens}")
+        
+        # 获取优化统计
+        stats = self.token_optimizer.get_stats()
+        logger.info(f"Cache hit rate: {stats['cache_stats']['hit_rate']}")
+        logger.info(f"Total saved by cache: {stats['saved_by_cache']} tokens")
+        
+        # 合并分块结果
+        merged_data = self._merge_chunk_results(result_data)
+        
+        # 构建最终结果
+        return self._build_analysis_result(merged_data, content)
+    
+    async def _analyze_chunk(
+        self, 
+        content: str, 
+        focus_areas: List[str]
+    ) -> Dict:
+        """
+        分析单个文档块
+        """
         focus_hint = f"\n重点关注领域: {', '.join(focus_areas)}" if focus_areas else ""
         
-        prompt = f"""你是一个专业的游戏测试专家。请分析以下需求文档，提取测试要点。
+        prompt = f"""你是一个专业的游戏测试专家。请分析以下需求文档片段，提取测试要点。
 
 ## 分析要求
 
-1. **文档摘要**：用2-3句话概括文档核心内容
+1. **文档摘要**：用1-2句话概括该片段核心内容
 2. **测试要点提取**：识别所有需要测试的功能点、规则、边界条件
    - 每个测试要点包含：标题、详细描述、优先级(P0/P1/P2/P3)、类别
    - 优先级定义：
-     * P0 - 阻塞级，必须测试，失败会阻塞发布
-     * P1 - 高优先级，核心功能必须测试
-     * P2 - 中优先级，常规功能测试
-     * P3 - 低优先级，有精力时测试
+     * P0 - 阻塞级，必须测试
+     * P1 - 高优先级，核心功能
+     * P2 - 中优先级，常规功能
+     * P3 - 低优先级
    - 类别包括：功能、性能、安全、兼容性、UI/UX、数据、接口等
 3. **风险点识别**：列出可能存在的测试风险
-4. **待确认问题**：列出需求中不明确、需要与产品确认的问题{focus_hint}
+4. **待确认问题**：列出需求中不明确的问题{focus_hint}
 
 ## 输出格式
 
-请以JSON格式输出，结构如下：
+请以JSON格式输出：
 ```json
 {{
-  "document_summary": "文档摘要",
+  "document_summary": "片段摘要",
   "test_points": [
     {{
       "id": "TP001",
@@ -168,39 +218,75 @@ class DocumentAnalyzerSkill(BaseSkill):
       "description": "详细描述",
       "priority": "P1",
       "category": "功能",
-      "related_requirement": "关联的需求描述",
-      "preconditions": ["前置条件1", "前置条件2"],
-      "test_data": ["测试数据建议1"],
-      "notes": "备注"
+      "related_requirement": "关联需求",
+      "preconditions": [],
+      "test_data": [],
+      "notes": ""
     }}
   ],
-  "risk_points": ["风险点1", "风险点2"],
-  "questions": ["待确认问题1", "待确认问题2"]
+  "risk_points": [],
+  "questions": []
 }}
 ```
 
-## 需求文档内容
+## 需求文档片段
 
-{content[:15000]}  <!-- 限制长度避免超出token限制 -->
+{content}
 
-请直接输出JSON，不要包含其他说明文字。"""
+请直接输出JSON。"""
 
-        # 调用LLM
-        response = await self.llm_client.complete(prompt)
-        
-        # 解析JSON响应
         try:
-            # 尝试提取JSON部分
+            response = await self.llm_client.complete(prompt)
             json_str = self._extract_json(response)
-            data = json.loads(json_str)
+            return json.loads(json_str)
+        except Exception as e:
+            logger.error(f"Chunk analysis failed: {e}")
+            # 返回空结果，不中断整体流程
+            return {
+                "document_summary": "",
+                "test_points": [],
+                "risk_points": [],
+                "questions": []
+            }
+    
+    def _merge_chunk_results(self, results: List[Dict]) -> Dict:
+        """
+        合并多个分块的分析结果
+        """
+        merged = {
+            "document_summary": "",
+            "test_points": [],
+            "risk_points": [],
+            "questions": []
+        }
+        
+        summaries = []
+        
+        for i, result in enumerate(results):
+            # 收集摘要
+            if result.get("document_summary"):
+                summaries.append(result["document_summary"])
             
-            # 构建AnalysisResult
-            return self._build_analysis_result(data, content)
+            # 合并测试要点（重新编号）
+            for tp in result.get("test_points", []):
+                tp["id"] = f"TP{len(merged['test_points'])+1:03d}"
+                merged["test_points"].append(tp)
             
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse LLM response as JSON: {e}")
-            logger.debug(f"Raw response: {response}")
-            raise ValueError(f"LLM返回格式错误: {e}")
+            # 合并风险点（去重）
+            for rp in result.get("risk_points", []):
+                if rp not in merged["risk_points"]:
+                    merged["risk_points"].append(rp)
+            
+            # 合并问题（去重）
+            for q in result.get("questions", []):
+                if q not in merged["questions"]:
+                    merged["questions"].append(q)
+        
+        # 合并摘要
+        if summaries:
+            merged["document_summary"] = " ".join(summaries[:3])  # 最多取3个摘要
+        
+        return merged
     
     def _extract_json(self, text: str) -> str:
         """从文本中提取JSON部分"""
