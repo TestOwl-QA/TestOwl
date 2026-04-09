@@ -270,69 +270,30 @@ class Config:
         return value
     
     def validate(self) -> bool:
-        """
-        验证配置是否有效（增强版）
-        
-        Returns:
-            是否有效
-        
-        Raises:
-            ConfigError: 配置无效时抛出，包含详细的修复建议
-        """
-        errors = []
-        
-        # 1. 验证配置文件是否存在
+        """验证配置，自动修复常见问题"""
+        # 1. 自动创建配置文件（从模板复制）
         if not Path(self._config_path).exists():
-            example_path = Path(self._config_path).parent / "config.yaml.example"
-            error_msg = (
-                f"配置文件不存在: {self._config_path}\n\n"
-                f"修复步骤:\n"
-                f"1. 复制模板文件:\n"
-                f"   cp {example_path} {self._config_path}\n\n"
-                f"2. 编辑配置文件，填入你的API密钥:\n"
-                f"   修改 llm.api_key 字段\n\n"
-                f"或者设置环境变量:\n"
-                f"   export LLM_API_KEY=your_api_key_here"
-            )
-            raise ConfigError(error_msg)
+            example = Path(self._config_path).parent / "config.yaml.example"
+            if example.exists():
+                import shutil
+                shutil.copy(example, self._config_path)
+                print(f"[Config] ✓ 已自动创建配置文件: {self._config_path}")
         
-        # 2. 验证LLM配置
-        api_key = self.llm.api_key.strip() if self.llm.api_key else ""
-        env_api_key = os.getenv("LLM_API_KEY", "").strip()
+        # 2. 检查API密钥（环境变量优先）
+        if not self.llm.api_key:
+            print("[Config] ⚠️  LLM API密钥未配置")
+            print("[Config]    修复方式（二选一）:")
+            print("[Config]    1. 设置环境变量: set LLM_API_KEY=your_key")
+            print("[Config]    2. 编辑配置文件: config/config.yaml -> llm.api_key")
+            print("[Config]    注意: 环境变量优先级高于配置文件，推荐用法")
+        else:
+            # 隐藏显示密钥，只显示前8位
+            masked = self.llm.api_key[:8] + "..." if len(self.llm.api_key) > 8 else "***"
+            source = "环境变量" if os.getenv("LLM_API_KEY") else "配置文件"
+            print(f"[Config] ✓ LLM API密钥已配置 ({source}: {masked})")
         
-        if not api_key and not env_api_key:
-            errors.append(
-                "LLM API密钥未配置\n"
-                "修复方法（选择其一）:\n"
-                f"  1. 编辑配置文件 {self._config_path}，设置 llm.api_key\n"
-                "  2. 设置环境变量: export LLM_API_KEY=your_key"
-            )
-        
-        # 3. 验证提供商配置
-        valid_providers = ["moonshot", "openai", "deepseek"]
-        if self.llm.provider not in valid_providers:
-            errors.append(
-                f"不支持的LLM提供商: {self.llm.provider}\n"
-                f"支持的提供商: {', '.join(valid_providers)}"
-            )
-        
-        # 4. 验证存储目录
-        try:
-            output_path = Path(self.storage.output_dir)
-            if not output_path.exists():
-                output_path.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            errors.append(
-                f"无法创建输出目录 {self.storage.output_dir}: {e}\n"
-                "请检查目录权限或修改 storage.output_dir 配置"
-            )
-        
-        # 如果有错误，抛出异常
-        if errors:
-            error_msg = "配置验证失败:\n\n" + "\n\n".join(
-                f"[{i+1}] {err}" for i, err in enumerate(errors)
-            )
-            raise ConfigError(error_msg)
+        # 3. 确保输出目录存在
+        Path(self.storage.output_dir).mkdir(parents=True, exist_ok=True)
         
         return True
     
