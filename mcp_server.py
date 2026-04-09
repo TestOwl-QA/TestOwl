@@ -242,11 +242,12 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
             return auth_header[7:]
         return request.headers.get("X-API-Key", "")
     
-    async def handle_sse(request):
+    async def handle_sse(scope, receive, send):
+        from starlette.requests import Request
+        request = Request(scope, receive)
         handler.user_api_key = get_api_key_from_request(request)
-        async with sse_transport.connect_sse(request.scope, request.receive, request._send) as streams:
+        async with sse_transport.connect_sse(scope, receive, send) as streams:
             await handler.server.run(streams[0], streams[1], handler.server.create_initialization_options())
-        return Response()
     
     app = Starlette(lifespan=lifespan, routes=[
         Route("/sse", endpoint=handle_sse, methods=["GET"]),
