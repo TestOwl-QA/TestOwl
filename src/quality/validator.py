@@ -207,6 +207,59 @@ class BaseValidator(ABC):
             field=field,
             suggestion=suggestion,
         )
+    
+    # ========== 通用工具方法 ==========
+    
+    def has_placeholder(self, text: str) -> bool:
+        """检测文本是否包含占位符"""
+        if not text:
+            return False
+        placeholders = ["待补充", "TODO", "FIXME", "待定", "[", "]", "请填写"]
+        return any(p in text for p in placeholders)
+    
+    def create_failed_result(
+        self, 
+        issues: List[ValidationIssue], 
+        metadata: Dict[str, Any] = None
+    ) -> ValidationResult:
+        """创建失败结果"""
+        score = QualityScore(
+            total_score=0.0,
+            dimension_scores={"completeness": 0.0},
+            passed=False,
+            threshold=70.0
+        )
+        return ValidationResult.failed(issues, score, metadata or {})
+    
+    def extract_items(
+        self, 
+        data: Any, 
+        list_keys: List[str] = None,
+        item_identifier: str = "name"
+    ) -> List[Dict]:
+        """
+        通用数据提取方法
+        
+        从各种格式中提取项目列表
+        
+        Args:
+            data: 输入数据
+            list_keys: 可能的列表字段名
+            item_identifier: 标识单个项目的字段名
+        """
+        if isinstance(data, list):
+            return data
+        
+        if isinstance(data, dict):
+            list_keys = list_keys or ["items", "data", "list"]
+            for key in list_keys:
+                if key in data and isinstance(data[key], list):
+                    return data[key]
+            # 如果 dict 本身看起来像项目
+            if item_identifier in data:
+                return [data]
+        
+        return []
 
 
 class ValidatorRegistry:
