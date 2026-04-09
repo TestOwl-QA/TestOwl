@@ -254,7 +254,11 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
         send = request._send
         await sse_transport.handle_post_message(scope, receive, send)
     
-    app = Starlette(routes=[
+    @asynccontextmanager
+    async def lifespan(app):
+        yield
+    
+    app = Starlette(lifespan=lifespan, routes=[
         Route("/sse", endpoint=handle_sse, methods=["GET"]),
         Route("/messages/", endpoint=handle_post_message, methods=["POST"]),
     ])
