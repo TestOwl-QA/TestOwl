@@ -225,6 +225,8 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
     from starlette.applications import Starlette
     from starlette.routing import Route, Mount
     from starlette.responses import Response
+    from starlette.middleware import Middleware
+    from starlette.middleware.cors import CORSMiddleware
     from contextlib import asynccontextmanager
     import uvicorn
     
@@ -258,10 +260,17 @@ async def run_sse(host: str = "0.0.0.0", port: int = 8000):
     async def lifespan(app):
         yield
     
+    middleware = [
+        Middleware(CORSMiddleware, 
+                   allow_origins=["*"], 
+                   allow_methods=["*"], 
+                   allow_headers=["*"])
+    ]
+    
     app = Starlette(lifespan=lifespan, routes=[
         Route("/sse", endpoint=handle_sse, methods=["GET"]),
         Route("/messages/", endpoint=handle_post_message, methods=["POST"]),
-    ])
+    ], middleware=middleware)
     
     print(f"🚀 MCP SSE 服务器启动于 http://{host}:{port}")
     print(f"   SSE 端点: http://{host}:{port}/sse")
