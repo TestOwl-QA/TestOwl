@@ -1,17 +1,54 @@
 import asyncio
 import json
 
+async def detect_intent(client, user_msg, history):
+    """自然对话中识别意图"""
+    prompt = """从用户输入中识别意图。返回JSON:
+{"intent":"analyze|generate|check_table|analyze_bug|chat","target":"具体内容"}
+
+意图:
+- analyze: 分析需求/功能/设计
+- generate: 生成测试用例
+- check_table: 检查配置表/数据表
+- analyze_bug: 分析bug/崩溃/错误
+- chat: 普通聊天/问答/闲聊
+
+示例:
+"帮我分析登录功能" → {"intent":"analyze","target":"登录功能"}
+"写个支付的测试用例" → {"intent":"generate","target":"支付功能"}
+"这张表有问题吗" → {"intent":"check_table","target":"配置表"}
+"这个报错是什么原因" → {"intent":"analyze_bug","target":"报错分析"}
+"你好" → {"intent":"chat","target":""}
+
+输入: """ + user_msg
+    
+    try:
+        result = await asyncio.wait_for(client.complete(prompt), timeout=8)
+        clean = result.strip()
+        if "```" in clean:
+            clean = clean.split("```")[1].replace("json", "").strip()
+        return json.loads(clean)
+    except:
+        # 降级
+        if "分析" in user_msg:
+            return {"intent": "analyze", "target": user_msg.replace("分析", "").strip()}
+        elif "用例" in user_msg:
+            return {"intent": "generate", "target": user_msg.replace("生成用例", "").replace("写个", "").strip()}
+        elif "表" in user_msg or "配置" in user_msg:
+            return {"intent": "check_table", "target": "配置表"}
+        elif "报错" in user_msg or "崩溃" in user_msg or "bug" in user_msg.lower():
+            return {"intent": "analyze_bug", "target": user_msg}
+        return {"intent": "chat", "target": ""}
+
 async def handle_chat(req, get_api_key, get_config_with_key):
-    """智能对话接口"""
+    """智能对话"""
     token = req.get("session_token")
     user_msg = req.get("message", "")
     history = req.get("history", [])
-    
     key = get_api_key(token)
-    if not key:
-        return {"success": False, "error": "未配置API Key"}
     
-    thoughts = []
+    if not key:
+        return {"success": False, "error": "请先配置API Key"}
     
     try:
         config = get_config_with_key(key)
@@ -20,116 +57,93 @@ async def handle_chat(req, get_api_key, get_config_with_key):
         client = LLMClient(config)
         
         # 意图识别
-        thoughts.append({"step": "意图识别", "status": "done", "content": "分析用户输入..."})
+        intent_data = await detect_intent(client, user_msg, history)
+        intent = intent_data.get("intent", "chat")
+        target = intent_data.get("target", "")
         
-        intent = "chat"
-        target = ""
-        
-        if user_msg.startswith("分析") or "分析需求" in user_msg:
-            intent = "analyze"
-            target = user_msg.replace("分析", "").replace("需求：", "").replace("需求:", "").strip()
-        elif user_msg.startswith("生成用例") or "生成测试用例" in user_msg:
-            intent = "generate"
-            target = user_msg.replace("生成用例", "").replace("：", ":").strip()
-        
-        thoughts[-1]["content"] = f"意图: {intent}"
-        
-        # 分析需求
+        # 需求分析
         if intent == "analyze" and target:
-            thoughts.append({"step": "需求分析", "status": "thinking", "content": "正在分析..."})
-            
-            prompt = """作为资深测试专家，深入分析测试需求。返回JSON格式:
-{
-  "summary": "需求核心功能描述",
-  "test_points": [{"id": "T001", "title": "测试场景", "description": "测试什么", "priority": "P0/P1/P2", "category": "功能/性能/安全"}],
-  "risks": [{"scenario": "风险场景", "impact": "影响", "suggestion": "测试建议"}],
-  "questions": ["待确认问题"]
-}
+            prompt = """分析以下测试需求，提取测试点和风险。JSON格式:
+{"summary":"概述","test_points":[{"title":"场景","desc":"说明","pri":"P0/P1/P2"}],"risks":["风险1","风险2"]}
 
 需求: """ + target
             
             result = await asyncio.wait_for(client.complete(prompt), timeout=60)
-            
             try:
                 clean = result.strip()
                 if "```" in clean:
                     clean = clean.split("```")[1].replace("json", "").strip()
                 data = json.loads(clean)
                 
-                thoughts[-1]["status"] = "done"
-                thoughts[-1]["content"] = f"识别{len(data.get('test_points', []))}个测试点"
-                
-                # 直接返回HTML格式
-                output = "<b>需求分析结果</b><br><br>"
-                output += "<b>概述:</b> " + data.get('summary', '') + "<br><br>"
-                
+                output = f"<h3>需求分析</h3><p>{data.get('summary', '')}</p>"
                 points = data.get('test_points', [])
                 if points:
-                    output += "<b>测试点 (" + str(len(points)) + "个)</b><br>"
+                    output += "<h4>测试点</h4><ul>"
                     for p in points:
-                        output += "• <b>[" + p.get('priority', 'P2') + "] " + p.get('title', '') + "</b><br>"
-                        output += "&nbsp;&nbsp;" + p.get('description', '') + "<br>"
-                
+                        output += f"<li>[{p.get('pri','P2')}] {p.get('title','')} - {p.get('desc','')}</li>"
+                    output += "</ul>"
                 risks = data.get('risks', [])
                 if risks:
-                    output += "<br><b>风险点 (" + str(len(risks)) + "个)</b><br>"
+                    output += "<h4>风险</h4><ul>"
                     for r in risks:
-                        output += "• " + r.get('scenario', '') + "<br>"
-                
-                questions = data.get('questions', [])
-                if questions:
-                    output += "<br><b>待确认 (" + str(len(questions)) + "个)</b><br>"
-                    for q in questions:
-                        output += "• " + q + "<br>"
-                
-                return {"success": True, "response": output, "thoughts": thoughts}
+                        output += f"<li>{r}</li>"
+                    output += "</ul>"
+                return {"success": True, "response": output}
             except:
-                return {"success": True, "response": result, "thoughts": thoughts}
+                return {"success": True, "response": result}
         
         # 生成用例
         elif intent == "generate" and target:
-            thoughts.append({"step": "用例生成", "status": "thinking", "content": "正在生成..."})
-            
-            prompt = """作为资深测试专家，生成测试用例。返回JSON格式:
-{"test_cases": [{"id": "TC001", "title": "用例标题", "precondition": "前置条件", "steps": ["步骤1", "步骤2"], "expected": "预期结果", "priority": "P0/P1/P2"}]}
+            prompt = """为以下需求生成测试用例。JSON格式:
+{"cases":[{"id":"TC001","title":"标题","steps":["步骤1","步骤2"],"expected":"预期","pri":"P0/P1/P2"}]}
 
 需求: """ + target
             
             result = await asyncio.wait_for(client.complete(prompt), timeout=60)
-            
             try:
                 clean = result.strip()
                 if "```" in clean:
                     clean = clean.split("```")[1].replace("json", "").strip()
                 data = json.loads(clean)
                 
-                thoughts[-1]["status"] = "done"
-                thoughts[-1]["content"] = f"生成{len(data.get('test_cases', []))}个用例"
-                
-                output = "<b>测试用例</b><br><br>"
-                for c in data.get('test_cases', []):
-                    output += "<b>" + c.get('id', '') + " " + c.get('title', '') + " [" + c.get('priority', 'P2') + "]</b><br>"
-                    output += "前置: " + c.get('precondition', '无') + "<br>"
-                    output += "步骤:<br>"
-                    for i, s in enumerate(c.get('steps', []), 1):
-                        output += "&nbsp;&nbsp;" + str(i) + ". " + s + "<br>"
-                    output += "预期: " + c.get('expected', '') + "<br><br>"
-                
-                return {"success": True, "response": output, "thoughts": thoughts}
+                output = "<h3>测试用例</h3>"
+                for c in data.get('cases', []):
+                    output += f"<h4>{c.get('id','')} {c.get('title','')} [{c.get('pri','P2')}]</h4>"
+                    output += "<ol>"
+                    for s in c.get('steps', []):
+                        output += f"<li>{s}</li>"
+                    output += f"</ol><p><b>预期:</b>{c.get('expected','')}</p>"
+                return {"success": True, "response": output}
             except:
-                return {"success": True, "response": result, "thoughts": thoughts}
+                return {"success": True, "response": result}
         
-        # 普通对话
+        # 表检查 - 自然引导
+        elif intent == "check_table":
+            return {
+                "success": True,
+                "response": "好的，把配置表发给我，我帮你看一下有没有问题。"
+            }
+        
+        # Bug分析 - 自然引导
+        elif intent == "analyze_bug":
+            return {
+                "success": True,
+                "response": "把报错信息或崩溃日志发我看看，帮你分析下原因。"
+            }
+        
+        # 普通对话 - 自然交流
         else:
-            thoughts.append({"step": "生成回复", "status": "done", "content": "思考中..."})
-            
-            context = "\n".join([m.get("role", "") + ": " + m.get("content", "") for m in history[-5:]])
-            prompt = "你是TestOwl，10年资深测试专家。专业严谨务实，善于发现风险。可用功能: 分析xxx、生成用例xxx。\n历史:\n" + context + "\n用户: " + user_msg
+            context = "\n".join([f"{m.get('role')}: {m.get('content')}" for m in history[-3:]])
+            prompt = f"""简洁自然地回复用户。你是测试领域的专业人士，但不要强调身份，直接说事。
+
+对话:
+{context}
+用户: {user_msg}"""
             
             result = await asyncio.wait_for(client.complete(prompt), timeout=60)
-            return {"success": True, "response": result, "thoughts": thoughts}
+            return {"success": True, "response": result}
     
     except asyncio.TimeoutError:
-        return {"success": False, "error": "请求超时", "thoughts": thoughts}
+        return {"success": False, "error": "响应超时了，稍后再试"}
     except Exception as e:
-        return {"success": False, "error": str(e), "thoughts": thoughts}
+        return {"success": False, "error": f"出错了: {str(e)}"}
