@@ -223,63 +223,119 @@ async def generate_cases(req: AnalyzeRequest):
 
 @app.get("/health")
 async def health():
-    """Web自检接口 - 冒烟测试"""
-    results = {
-        "status": "ok",
-        "timestamp": datetime.now().isoformat(),
-        "checks": []
-    }
+    """真实冒烟测试"""
+    import time, os, traceback
+    from io import BytesIO
+    from datetime import datetime
+    
+    checks = []
     
     # 1. API服务检查
-    results["checks"].append({"name": "API服务", "status": "pass", "message": "运行正常"})
+    checks.append({"name": "API服务", "status": "pass", "message": "运行正常"})
     
-    # 2. 检查session存储
+    # 2. 会话管理检查
     try:
-        session_count = len(sessions)
-        results["checks"].append({"name": "会话管理", "status": "pass", "message": f"正常，{session_count}个活跃会话"})
+        active_count = len(sessions)
+        checks.append({"name": "会话管理", "status": "pass", "message": f"正常，{active_count}个活跃会话"})
     except Exception as e:
-        results["checks"].append({"name": "会话管理", "status": "fail", "message": str(e), "traceback": traceback.format_exc()})
-        results["status"] = "error"
+        checks.append({"name": "会话管理", "status": "fail", "message": str(e)})
     
-    # 3. 检查上传目录
+    # 3. 文件存储检查
     try:
         upload_dir = "uploads"
-        if os.path.exists(upload_dir):
-            file_count = len(os.listdir(upload_dir))
-            results["checks"].append({"name": "文件存储", "status": "pass", "message": f"目录正常，{file_count}个文件"})
-        else:
-            os.makedirs(upload_dir, exist_ok=True)
-            results["checks"].append({"name": "文件存储", "status": "pass", "message": "目录已创建"})
+        if not os.path.exists(upload_dir):
+            os.makedirs(upload_dir)
+        file_count = len(os.listdir(upload_dir)) if os.path.exists(upload_dir) else 0
+        checks.append({"name": "文件存储", "status": "pass", "message": f"目录正常，{file_count}个文件"})
     except Exception as e:
-        results["checks"].append({"name": "文件存储", "status": "fail", "message": str(e), "traceback": traceback.format_exc()})
-        results["status"] = "error"
+        checks.append({"name": "文件存储", "status": "fail", "message": str(e)})
     
-    # 4. 检查导出依赖
-    try:
-        import reportlab
-        import openpyxl
-        import docx
-        results["checks"].append({"name": "导出功能", "status": "pass", "message": "PDF/Excel/Word导出正常"})
-    except ImportError as e:
-        results["checks"].append({"name": "导出功能", "status": "fail", "message": f"依赖缺失: {str(e)}", "traceback": traceback.format_exc()})
-        results["status"] = "error"
+    # 4. 导出功能检查 - 模拟前端实际请求参数
+    export_formats = [
+        ("md", "Markdown"),
+        ("pdf", "PDF"),
+        ("xlsx", "Excel"),  # 前端实际传的是xlsx
+        ("docx", "Word")    # 前端实际传的是docx
+    ]
     
-    # 5. 检查配置目录
+    for fmt, name in export_formats:
+        try:
+            # 真实生成文件到内存
+            if fmt == "md":
+                file_bytes = "测试内容".encode('utf-8')
+            elif fmt == "pdf":
+                from reportlab.lib.pagesizes import A4
+                from reportlab.pdfgen import canvas
+                from reportlab.pdfbase import pdfmetrics
+                from reportlab.pdfbase.ttfonts import TTFont
+                try:
+                    pdfmetrics.registerFont(TTFont('SimSun', '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc'))
+                    font = 'SimSun'
+                except:
+                    font = 'Helvetica'
+                buffer = BytesIO()
+                c = canvas.Canvas(buffer, pagesize=A4)
+                c.setFont(font, 10)
+                c.drawString(50, 800, "测试内容")
+                c.save()
+                file_bytes = buffer.getvalue()
+            elif fmt == "xlsx":
+                from openpyxl import Workbook
+                wb = Workbook()
+                ws = wb.active
+                ws.cell(row=1, column=1, value="测试内容")
+                buffer = BytesIO()
+                wb.save(buffer)
+                file_bytes = buffer.getvalue()
+            elif fmt == "docx":
+                from docx import Document
+                doc = Document()
+                doc.add_paragraph("测试内容")
+                buffer = BytesIO()
+                doc.save(buffer)
+                file_bytes = buffer.getvalue()
+            
+            checks.append({"name": f"{name}导出", "status": "pass", "message": "生成成功"})
+        except Exception as e:
+            tb = traceback.format_exc()
+            checks.append({
+                "name": f"{name}导出", 
+                "status": "fail", 
+                "message": str(e)[:50],
+                "traceback": tb
+            })
+    
+    # 5. 配置目录检查
     try:
-        config_dir = "config"
-        if os.path.exists(config_dir):
-            results["checks"].append({"name": "配置目录", "status": "pass", "message": "存在"})
-        else:
-            results["checks"].append({"name": "配置目录", "status": "warn", "message": "不存在（可选）"})
+        config_exists = os.path.exists("config")
+        checks.append({"name": "配置目录", "status": "pass" if config_exists else "warn", "message": "存在" if config_exists else "不存在"})
     except Exception as e:
-        results["checks"].append({"name": "配置目录", "status": "fail", "message": str(e)})
+        checks.append({"name": "配置目录", "status": "fail", "message": str(e)})
     
-    return results
+    # 6. 前后端参数一致性检查（新增）
+    try:
+        with open('/root/testowl/web/index.html', 'r') as f:
+            html = f.read()
+        # 检查前端导出按钮传的参数
+        frontend_formats = re.findall(r"exportChat\('(\w+)'\)", html)
+        expected = ['md', 'pdf', 'xlsx', 'docx']
+        missing = [f for f in expected if f not in frontend_formats]
+        wrong = [f for f in frontend_formats if f not in expected]
+        
+        if missing or wrong:
+            msg = f"前端参数异常: 缺少{missing}, 错误{wrong}" if (missing or wrong) else "参数一致"
+            checks.append({"name": "前后端参数", "status": "warn" if (missing or wrong) else "pass", "message": msg})
+        else:
+            checks.append({"name": "前后端参数", "status": "pass", "message": "参数一致"})
+    except Exception as e:
+        checks.append({"name": "前后端参数", "status": "warn", "message": f"检查失败: {str(e)[:30]}"})
+    
+    return {
+        "status": "ok" if all(c["status"] == "pass" for c in checks) else "warn",
+        "timestamp": datetime.now().isoformat(),
+        "checks": checks
+    }
 
-from datetime import datetime
-from fastapi.responses import Response
-
-from datetime import datetime
 
 @app.post("/export")
 async def export_report(req: AnalyzeRequest):
@@ -441,57 +497,6 @@ import base64
 from datetime import datetime
 from io import BytesIO
 
-@app.post("/export_single")
-async def export_single(req: dict):
-    key = get_api_key(req.get("session_token", ""))
-    if not key:
-        return {"success": False, "error": "未配置API Key"}
-    
-    content = req.get("content", "")
-    fmt = req.get("format", "md")
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    try:
-        if fmt == "md":
-            return {"success": True, "file": base64.b64encode(content.encode()).decode(), "filename": f"testowl_{ts}.md"}
-        
-        elif fmt == "pdf":
-            from reportlab.lib.pagesizes import A4
-            from reportlab.pdfgen import canvas
-            buf = BytesIO()
-            c = canvas.Canvas(buf, pagesize=A4)
-            y = 800
-            for line in content.split('\n'):
-                if y < 50: c.showPage(); y = 800
-                c.drawString(50, y, line[:80][:200])
-                y -= 15
-            c.save()
-            return {"success": True, "file": base64.b64encode(buf.getvalue()).decode(), "filename": f"testowl_{ts}.pdf"}
-        
-        elif fmt == "xlsx":
-            from openpyxl import Workbook
-            wb = Workbook()
-            ws = wb.active
-            for i, line in enumerate(content.split('\n'), 1):
-                ws.cell(row=i, column=1, value=line[:32000])
-            buf = BytesIO()
-            wb.save(buf)
-            return {"success": True, "file": base64.b64encode(buf.getvalue()).decode(), "filename": f"testowl_{ts}.xlsx"}
-        
-        elif fmt == "docx":
-            from docx import Document
-            doc = Document()
-            for line in content.split('\n'):
-                doc.add_paragraph(line)
-            buf = BytesIO()
-            doc.save(buf)
-            return {"success": True, "file": base64.b64encode(buf.getvalue()).decode(), "filename": f"testowl_{ts}.docx"}
-        
-        return {"success": False, "error": "不支持的格式"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-# ========== Web自检和开发者模式API ==========
 
 @app.post("/test/run")
 async def run_test():
