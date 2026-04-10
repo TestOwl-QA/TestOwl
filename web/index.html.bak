@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head><link rel="icon" href="/assets/favicon.png" type="image/png">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+<meta charset="UTF-8">
+<title>TestOwl</title><link rel="icon" href="/assets/favicon.png" type="image/png">
+    <link rel="icon" href="/assets/favicon.png" type="image/png">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#FAF8F5;display:flex;min-height:100vh}
+.sidebar{width:180px;background:#F5F0E8;padding:20px 16px;border-right:1px solid #E0D8CC;display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0}
+.sidebar h1{font-size:16px;color:#5D4E37;margin-bottom:24px;font-weight:600}
+.nav-item{padding:8px 10px;margin:2px 0;border-radius:4px;cursor:pointer;color:#4A4A4A;font-size:13px;display:flex;align-items:center}
+.nav-item:hover{background:#EBE4D8}
+.nav-item.active{background:#E8E0D0;color:#5D4E37}
+.nav-item svg{width:14px;height:14px;margin-right:8px;stroke:currentColor;fill:none;stroke-width:1.5}
+.main{flex:1;margin-left:180px;display:flex;flex-direction:column;min-height:100vh}
+.chat-view{flex:1;display:flex;flex-direction:column;max-width:800px;margin:0 auto;width:100%;padding-bottom:80px}
+.chat-messages{flex:1;overflow-y:auto;padding:20px}
+.msg{margin:16px 0;display:flex}
+.msg.user{justify-content:flex-end}
+.msg.user .bubble{background:#A89070;color:white;border-radius:16px 16px 4px 16px}
+.msg.assistant{justify-content:flex-start}
+.msg.assistant .bubble{background:white;color:#4A4A4A;border-radius:16px 16px 16px 4px;border:1px solid #E8E0D0;position:relative}
+.bubble{padding:12px 28px 12px 16px;max-width:70%;font-size:14px;line-height:1.6}
+.export-icon{position:absolute;top:6px;right:6px;cursor:pointer;opacity:0.3;font-size:14px}
+.export-icon:hover{opacity:0.7}
+.chat-input-area{position:fixed;bottom:0;left:180px;right:0;padding:12px 20px;background:#FAF8F5;border-top:1px solid #E8E0D0;z-index:100}
+.input-box{position:relative;max-width:800px;margin:0 auto}
+.input-box textarea{width:100%;padding:14px 80px 14px 40px;border:1px solid #D8D0C0;border-radius:12px;font-size:14px;resize:none;height:80px;min-height:80px;max-height:250px;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+.input-box textarea:focus{outline:none;border-color:#A89070}
+.input-box button{position:absolute;right:10px;bottom:10px;padding:8px 16px;background:#B8A090;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px}
+.input-box button:hover{background:#A89070}
+.upload-btn{position:absolute;left:10px;bottom:14px;color:#B8A090;cursor:pointer;z-index:10}
+.upload-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5}
+.upload-btn:hover{color:#A89070}
+.tool-panel{display:none;padding:20px;max-width:800px;margin:0 auto;width:100%}
+.tool-panel.active{display:block}
+h2{color:#4A4A4A;font-size:15px;margin-bottom:16px}
+.panel-box{background:white;border-radius:8px;padding:16px;border:1px solid #E8E0D0;margin-bottom:12px}
+.panel-box label{display:block;color:#5D4E37;font-size:12px;margin-bottom:6px}
+input[type="password"]{width:100%;padding:8px;border:1px solid #D8D0C0;border-radius:4px;font-size:13px;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+.btn{padding:8px 16px;background:#B8A090;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px}
+.btn:hover{background:#A89070}
+.status{font-size:11px;padding:3px 6px;border-radius:3px;background:#E8F5E9;color:#2E7D32}
+.report-menu{display:none;position:fixed;background:white;border:1px solid #E8E0D0;border-radius:6px;padding:12px;box-shadow:0 2px 12px rgba(0,0,0,0.15);z-index:1000}
+.export-btn{display:block;width:100%;margin:4px 0;padding:6px;background:#D4C4B0;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px}
+.export-btn:hover{background:#B8A090}
+</style>
+</head>
+<body>
+<div class="sidebar">
+<h1>TestOwl</h1>
+<div class="nav-item active" onclick="switchView('chat')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>对话</div>
+<div class="nav-item" onclick="switchView('settings')" style="margin-top:auto"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>设置</div>
+</div>
+<div class="main">
+<div id="chatView" class="chat-view">
+<div class="chat-messages" id="chatMessages">
+<div class="msg assistant"><div class="bubble"><span class="export-icon" onclick="showExportMenu(event,this)">📄</span>你好，我是 TestOwl。可以直接对话，也可以用以下方式触发功能：
+
+• 分析需求：xxx
+• 生成用例：xxx
+• 上传文件后自动识别
+
+比如："分析需求：用户登录功能"</div></div>
+</div>
+</div>
+<div id="settings" class="tool-panel">
+<h2>设置</h2>
+<div class="panel-box"><label>API Key</label><input type="password" id="apiKey"><button class="btn" onclick="saveKey()" style="margin-top:8px">保存</button><p id="keyStatus" style="margin-top:8px;font-size:12px;color:#666"></p></div>
+</div>
+</div>
+<div class="chat-input-area">
+<div class="input-box">
+<span class="upload-btn" onclick="document.getElementById('chatFile').click()"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></span>
+<input type="file" id="chatFile" style="display:none" onchange="handleChatFile(this)">
+<textarea id="chatInput" placeholder="输入消息..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"></textarea>
+<button onclick="sendMsg()">发送</button>
+</div>
+</div>
+<div id="reportMenu" class="report-menu" onclick="event.stopPropagation()">
+<button class="export-btn" onclick="exportSingle('md')">Markdown</button>
+<button class="export-btn" onclick="exportSingle('pdf')">PDF</button>
+<button class="export-btn" onclick="exportSingle('xlsx')">Excel</button>
+<button class="export-btn" onclick="exportSingle('docx')">Word</button>
+</div>
+<script>
+const API='http://121.41.36.197:8081';
+let history=[],currentExportContent='';
+function switchView(v){
+document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+event.currentTarget.classList.add('active');
+document.getElementById('chatView').style.display=v==='chat'?'flex':'none';
+document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('active'));
+if(v!=='chat')document.getElementById(v).classList.add('active');
+}
+function showExportMenu(e,el){
+e.preventDefault();e.stopPropagation();
+currentExportContent=el.parentElement.textContent;
+const m=document.getElementById('reportMenu');
+m.style.display='block';
+m.style.left=(e.clientX-60)+'px';
+m.style.top=(e.clientY+10)+'px';
+}
+function exportSingle(fmt){
+const t=localStorage.getItem('session_token');
+if(!t){alert('请先保存API Key');return;}
+fetch(API+'/export_single',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:currentExportContent,format:fmt,session_token:t})})
+.then(r=>r.json()).then(d=>{
+if(d.success){const a=document.createElement('a');a.href='data:application/octet-stream;base64,'+d.file;a.download=d.filename;a.click();}
+else alert('导出失败: '+d.error);
+document.getElementById('reportMenu').style.display='none';
+});
+}
+document.addEventListener('click',()=>document.getElementById('reportMenu').style.display='none');
+async function handleChatFile(input){
+const file=input.files[0];if(!file)return;
+const t=localStorage.getItem('session_token');if(!t){alert('请先保存API Key');return;}
+const fd=new FormData();fd.append('file',file);fd.append('session_token',t);
+try{
+const r=await fetch(API+'/upload',{method:'POST',body:fd});
+const d=await r.json();
+if(d.success)document.getElementById('chatInput').value+=d.text.substring(0,3000);
+else alert('上传失败: '+d.error);
+}catch(e){alert('网络错误');}
+input.value='';
+}
+async function sendMsg(){
+const t=localStorage.getItem('session_token');
+if(!t){alert('请先在设置中保存API Key');return;}
+const input=document.getElementById('chatInput'),msg=input.value.trim();if(!msg)return;
+const msgs=document.getElementById('chatMessages');
+msgs.innerHTML+='<div class="msg user"><div class="bubble">'+msg.replace(/</g,'&lt;')+'</div></div>';
+input.value='';
+history.push({role:'user',content:msg});
+try{
+const r=await fetch(API+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history,session_token:t})});
+const d=await r.json();
+const content=d.success?d.response:'错误:'+d.error;
+msgs.innerHTML+='<div class="msg assistant"><div class="bubble"><span class="export-icon" onclick="showExportMenu(event,this)">📄</span>'+formatContent(content)+'</div></div>';
+if(d.success)history.push({role:'assistant',content:d.response});
+}catch(e){msgs.innerHTML+='<div class="msg assistant"><div class="bubble">网络错误</div></div>';}
+msgs.scrollTop=msgs.scrollHeight;
+}
+function formatContent(t){
+t=t.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+t=t.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+t=t.replace(/\n/g,'<br>');
+return t;
+}
+async function saveKey(){
+const k=document.getElementById('apiKey').value.trim();if(!k)return alert('请输入API Key');
+const r=await fetch(API+'/auth/save_key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:k})});
+const d=await r.json();
+if(d.success){localStorage.setItem('session_token',d.session_token);document.getElementById('apiKey').value='';document.getElementById('keyStatus').innerHTML='<span class="status">✓ 已保存</span>';}
+}
+window.onload=function(){if(localStorage.getItem('session_token'))document.getElementById('keyStatus').innerHTML='<span class="status">✓ 已配置</span>';};
+</script>
+</body>
+</html>
