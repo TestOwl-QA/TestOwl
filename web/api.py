@@ -254,23 +254,11 @@ async def export_report(req: AnalyzeRequest):
         return {"success": False, "error": str(e)}
 
 
+from web.chat_handler import handle_chat
+
 @app.post("/chat")
 async def chat(req: dict):
-    token = req.get("session_token")
-    msgs = req.get("messages", [])
-    key = get_api_key(token)
-    if not key:
-        return {"success": False, "error": "未配置API Key"}
-    try:
-        config = get_config_with_key(key)
-        from src.adapters.llm.client import LLMClient
-        client = LLMClient(config)
-        prompt = "你是TestOwl测试助手，说话简洁自然。\n" + "\n".join([m["role"]+":"+m["content"] for m in msgs[-10:]])
-        result = await asyncio.wait_for(client.complete(prompt), timeout=60)
-        return {"success": True, "response": result}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
+    return await handle_chat(req, get_api_key, get_config_with_key)
 
 @app.post("/export_chat")
 async def export_chat(req: dict):
