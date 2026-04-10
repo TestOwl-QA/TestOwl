@@ -106,8 +106,8 @@ input[type="password"]{width:100%;padding:8px;border:1px solid #D8D0C0;border-ra
 <div class="report-menu" id="reportMenu">
 <button class="export-btn" onclick="exportChat('md')">Markdown</button>
 <button class="export-btn" onclick="exportChat('pdf')">PDF</button>
-<button class="export-btn" onclick="exportChat('excel')">Excel</button>
-<button class="export-btn" onclick="exportChat('word')">Word</button>
+<button class="export-btn" onclick="exportChat('xlsx')">Excel</button>
+<button class="export-btn" onclick="exportChat('docx')">Word</button>
 </div>
 
 <script>
@@ -167,16 +167,22 @@ function showExportMenu(e,el){
 }
 
 async function exportChat(fmt){
-  const t=localStorage.getItem('session_token');
-  if(!t){alert('请先保存API Key');return;}
-  const r=await fetch(API+'/export_single',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({content:currentExportContent,format:fmt})});
-  const d=await r.json();
-  if(d.download_url){
-    const a=document.createElement('a');
-    a.href=d.download_url;
-    a.download='export.'+fmt;
-    a.click();
-  }
+ const t=localStorage.getItem('session_token');
+ if(!t){alert('请先保存API Key');return;}
+ const r=await fetch(API+'/export_single',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({content:currentExportContent,format:fmt,session_token:t})});
+ const d=await r.json();
+ if(d.file){
+ const bin=atob(d.file);
+ const arr=new Uint8Array(bin.length);
+ for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+ const blob=new Blob([arr]);
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download=d.filename;
+ a.click();
+ }else if(d.error){
+ alert('导出失败:'+d.error);
+ }
 }
 
 async function handleFile(f){
