@@ -1,10 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head><link rel="icon" href="/assets/favicon.png" type="image/png">
-  <link rel="icon" type="image/png" href="assets/logo.png">
 <meta charset="UTF-8">
-<title>TestOwl</title><link rel="icon" href="/assets/favicon.png" type="image/png">
-    <link rel="icon" href="/assets/favicon.png" type="image/png">
+<title>TestOwl</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#FAF8F5;display:flex;min-height:100vh}
@@ -27,22 +25,22 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 .export-icon:hover{opacity:0.7}
 .chat-input-area{position:fixed;bottom:0;left:180px;right:0;padding:12px 20px;background:#FAF8F5;border-top:1px solid #E8E0D0;z-index:100}
 .input-box{position:relative;max-width:800px;margin:0 auto}
-.input-box textarea{width:100%;padding:14px 80px 14px 40px;border:1px solid #D8D0C0;border-radius:12px;font-size:14px;resize:none;height:80px;min-height:80px;max-height:250px;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+.input-box textarea{width:100%;padding:14px 80px 14px 40px;border:1px solid #D8D0C0;border-radius:12px;font-size:14px;resize:none;height:100px;min-height:100px;max-height:300px;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
 .input-box textarea:focus{outline:none;border-color:#A89070}
 .input-box button{position:absolute;right:10px;bottom:10px;padding:8px 16px;background:#B8A090;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px}
 .input-box button:hover{background:#A89070}
-.upload-btn{position:absolute;left:10px;bottom:14px;color:#B8A090;cursor:pointer;z-index:10}
-.upload-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5}
+.upload-btn{position:absolute;left:10px;bottom:12px;color:#B8A090;cursor:pointer;z-index:10}
 .upload-btn:hover{color:#A89070}
 .tool-panel{display:none;padding:20px;max-width:800px;margin:0 auto;width:100%}
 .tool-panel.active{display:block}
 h2{color:#4A4A4A;font-size:15px;margin-bottom:16px}
 .panel-box{background:white;border-radius:8px;padding:16px;border:1px solid #E8E0D0;margin-bottom:12px}
 .panel-box label{display:block;color:#5D4E37;font-size:12px;margin-bottom:6px}
+.panel-input{width:100%;height:100px;border:1px solid #D8D0C0;border-radius:4px;padding:8px;font-size:13px;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;resize:vertical}
 input[type="password"]{width:100%;padding:8px;border:1px solid #D8D0C0;border-radius:4px;font-size:13px;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
 .btn{padding:8px 16px;background:#B8A090;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px}
 .btn:hover{background:#A89070}
-.status{font-size:11px;padding:3px 6px;border-radius:3px;background:#E8F5E9;color:#2E7D32}
+.btn-outline{background:white;color:#5D4E37;border:1px solid #D8D0C0}
 .report-menu{display:none;position:fixed;background:white;border:1px solid #E8E0D0;border-radius:6px;padding:12px;box-shadow:0 2px 12px rgba(0,0,0,0.15);z-index:1000}
 .export-btn{display:block;width:100%;margin:4px 0;padding:6px;background:#D4C4B0;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px}
 .export-btn:hover{background:#B8A090}
@@ -51,111 +49,151 @@ input[type="password"]{width:100%;padding:8px;border:1px solid #D8D0C0;border-ra
 <body>
 <div class="sidebar">
 <h1>TestOwl</h1>
-<div class="nav-item active" onclick="switchView('chat')"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>对话</div>
-<div class="nav-item" onclick="switchView('settings')" style="margin-top:auto"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>设置</div>
+<div class="nav-item active" onclick="switchView('chat')">
+<svg viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>对话
+</div>
+<div class="nav-item" onclick="switchView('apikey')">
+<svg viewBox="0 0 24 24"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>API Key配置
+</div>
+<div class="nav-item" onclick="switchView('settings')" style="margin-top:auto">
+<svg viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>设置
+</div>
 </div>
 <div class="main">
-<div id="chatView" class="chat-view">
+<div id="chatView" class="chat-view" style="display:flex">
 <div class="chat-messages" id="chatMessages">
-<div class="msg assistant"><div class="bubble"><span class="export-icon" onclick="showExportMenu(event,this)">📄</span>你好，我是 TestOwl。可以直接对话，也可以用以下方式触发功能：
-
-• 分析需求：xxx
-• 生成用例：xxx
-• 上传文件后自动识别
-
-比如："分析需求：用户登录功能"</div></div>
-</div>
-</div>
-<div id="settings" class="tool-panel">
-<h2>设置</h2>
-<div class="panel-box"><label>API Key</label><input type="password" id="apiKey"><button class="btn" onclick="saveKey()" style="margin-top:8px">保存</button><p id="keyStatus" style="margin-top:8px;font-size:12px;color:#666"></p></div>
-</div>
+<div class="msg assistant"><div class="bubble">📄你好，我是 TestOwl，可以帮你分析测试需求、生成测试用例、检查配置表。</div></div>
 </div>
 <div class="chat-input-area">
 <div class="input-box">
-<span class="upload-btn" onclick="document.getElementById('chatFile').click()"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></span>
-<input type="file" id="chatFile" style="display:none" onchange="handleChatFile(this)">
-<textarea id="chatInput" placeholder="输入消息..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"></textarea>
-<button onclick="sendMsg()">发送</button>
+<div class="upload-btn" onclick="document.getElementById('fileInput').click()">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+</div>
+<input type="file" id="fileInput" style="display:none" onchange="handleFile(this.files[0])">
+<textarea id="userInput" placeholder="输入消息..."></textarea>
+<button onclick="sendMessage()">发送</button>
 </div>
 </div>
-<div id="reportMenu" class="report-menu" onclick="event.stopPropagation()">
-<button class="export-btn" onclick="exportSingle('md')">Markdown</button>
-<button class="export-btn" onclick="exportSingle('pdf')">PDF</button>
-<button class="export-btn" onclick="exportSingle('xlsx')">Excel</button>
-<button class="export-btn" onclick="exportSingle('docx')">Word</button>
 </div>
+
+<div id="apikey" class="tool-panel">
+<h2>API Key配置</h2>
+<div class="panel-box">
+<label>API Key</label>
+<input type="password" id="apiKey" placeholder="输入你的API Key">
+</div>
+<button class="btn" onclick="saveKey()">保存</button>
+<span id="keyStatus" style="margin-left:10px;color:#5D4E37;font-size:12px"></span>
+</div>
+
+<div id="settings" class="tool-panel">
+<h2>设置</h2>
+<div class="panel-box">
+<h3 style="color:#5D4E37;font-size:14px;margin-bottom:8px">Web自检</h3>
+<p style="color:#8B7355;font-size:12px">自动化测试功能（开发中）</p>
+<button class="btn btn-outline" style="margin-top:10px" onclick="alert('功能开发中，敬请期待')">运行自检</button>
+</div>
+<div class="panel-box">
+<h3 style="color:#5D4E37;font-size:14px;margin-bottom:8px">开发者模式</h3>
+<p style="color:#8B7355;font-size:12px">代码编辑功能（开发中）</p>
+<button class="btn btn-outline" style="margin-top:10px" onclick="alert('功能开发中，敬请期待')">进入开发者模式</button>
+</div>
+</div>
+</div>
+
+<div class="report-menu" id="reportMenu">
+<button class="export-btn" onclick="exportChat('md')">Markdown</button>
+<button class="export-btn" onclick="exportChat('pdf')">PDF</button>
+<button class="export-btn" onclick="exportChat('excel')">Excel</button>
+<button class="export-btn" onclick="exportChat('word')">Word</button>
+</div>
+
 <script>
 const API='http://121.41.36.197:8081';
 let history=[],currentExportContent='';
+
 function switchView(v){
-document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-event.currentTarget.classList.add('active');
-document.getElementById('chatView').style.display=v==='chat'?'flex':'none';
-document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('active'));
-if(v!=='chat')document.getElementById(v).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('chatView').style.display=v==='chat'?'flex':'none';
+  document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('active'));
+  if(v!=='chat')document.getElementById(v).classList.add('active');
 }
-function showExportMenu(e,el){
-e.preventDefault();e.stopPropagation();
-currentExportContent=el.parentElement.textContent;
-const m=document.getElementById('reportMenu');
-m.style.display='block';
-m.style.left=(e.clientX-60)+'px';
-m.style.top=(e.clientY+10)+'px';
-}
-function exportSingle(fmt){
-const t=localStorage.getItem('session_token');
-if(!t){alert('请先保存API Key');return;}
-fetch(API+'/export_single',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:currentExportContent,format:fmt,session_token:t})})
-.then(r=>r.json()).then(d=>{
-if(d.success){const a=document.createElement('a');a.href='data:application/octet-stream;base64,'+d.file;a.download=d.filename;a.click();}
-else alert('导出失败: '+d.error);
-document.getElementById('reportMenu').style.display='none';
-});
-}
-document.addEventListener('click',()=>document.getElementById('reportMenu').style.display='none');
-async function handleChatFile(input){
-const file=input.files[0];if(!file)return;
-const t=localStorage.getItem('session_token');if(!t){alert('请先保存API Key');return;}
-const fd=new FormData();fd.append('file',file);fd.append('session_token',t);
-try{
-const r=await fetch(API+'/upload',{method:'POST',body:fd});
-const d=await r.json();
-if(d.success)document.getElementById('chatInput').value+=d.text.substring(0,3000);
-else alert('上传失败: '+d.error);
-}catch(e){alert('网络错误');}
-input.value='';
-}
-async function sendMsg(){
-const t=localStorage.getItem('session_token');
-if(!t){alert('请先在设置中保存API Key');return;}
-const input=document.getElementById('chatInput'),msg=input.value.trim();if(!msg)return;
-const msgs=document.getElementById('chatMessages');
-msgs.innerHTML+='<div class="msg user"><div class="bubble">'+msg.replace(/</g,'&lt;')+'</div></div>';
-input.value='';
-history.push({role:'user',content:msg});
-try{
-const r=await fetch(API+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history,session_token:t})});
-const d=await r.json();
-const content=d.success?d.response:'错误:'+d.error;
-msgs.innerHTML+='<div class="msg assistant"><div class="bubble"><span class="export-icon" onclick="showExportMenu(event,this)">📄</span>'+formatContent(content)+'</div></div>';
-if(d.success)history.push({role:'assistant',content:d.response});
-}catch(e){msgs.innerHTML+='<div class="msg assistant"><div class="bubble">网络错误</div></div>';}
-msgs.scrollTop=msgs.scrollHeight;
-}
-function formatContent(t){
-t=t.replace(/</g,'&lt;').replace(/>/g,'&gt;');
-t=t.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
-t=t.replace(/\n/g,'<br>');
-return t;
-}
+
 async function saveKey(){
-const k=document.getElementById('apiKey').value.trim();if(!k)return alert('请输入API Key');
-const r=await fetch(API+'/auth/save_key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:k})});
-const d=await r.json();
-if(d.success){localStorage.setItem('session_token',d.session_token);document.getElementById('apiKey').value='';document.getElementById('keyStatus').innerHTML='<span class="status">✓ 已保存</span>';}
+  const k=document.getElementById('apiKey').value.trim();
+  if(!k)return alert('请输入API Key');
+  const r=await fetch(API+'/auth/save_key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:k})});
+  const d=await r.json();
+  if(d.success){localStorage.setItem('session_token',d.session_token);document.getElementById('apiKey').value='';document.getElementById('keyStatus').innerHTML='✓ 已保存';}
+  else alert('保存失败: '+d.error);
 }
-window.onload=function(){if(localStorage.getItem('session_token'))document.getElementById('keyStatus').innerHTML='<span class="status">✓ 已配置</span>';};
-</script>
+
+async function sendMessage(){
+  const t=localStorage.getItem('session_token');
+  if(!t){alert('请先保存API Key');return;}
+  const input=document.getElementById('userInput');
+  const m=input.value.trim();
+  if(!m)return;
+  addMsg('user',m);
+  input.value='';
+  try{
+    const r=await fetch(API+'/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({message:m,history:history,session_token:t})});
+    const d=await r.json();
+    if(d.error)throw new Error(d.error);
+    history.push({role:'user',content:m},{role:'assistant',content:d.response});
+    addMsg('assistant',d.response);
+  }catch(e){addMsg('assistant','错误: '+e.message);}
+}
+
+function addMsg(role,content){
+  const div=document.createElement('div');
+  div.className='msg '+role;
+  div.innerHTML='<div class="bubble">'+content+(role==='assistant'?'<span class="export-icon" onclick="showExportMenu(event,this.parentElement)">📋</span>':'')+'</div>';
+  document.getElementById('chatMessages').appendChild(div);
+  document.getElementById('chatMessages').scrollTop=document.getElementById('chatMessages').scrollHeight;
+}
+
+function showExportMenu(e,el){
+  e.preventDefault();e.stopPropagation();
+  currentExportContent=el.dataset.content||el.textContent.replace('📋','');
+  const m=document.getElementById('reportMenu');
+  m.style.display='block';
+  m.style.left=e.clientX+'px';
+  m.style.top=e.clientY+'px';
+  document.onclick=()=>{m.style.display='none';document.onclick=null;};
+}
+
+async function exportChat2(fmt){
+  const t=localStorage.getItem('session_token');
+  if(!t){alert('请先保存API Key');return;}
+  const r=await fetch(API+'/export_single',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({content:currentExportContent,format:fmt})});
+  const d=await r.json();
+  if(d.download_url){
+    const a=document.createElement('a');
+    a.href=d.download_url;
+    a.download='export.'+fmt;
+    a.click();
+  }
+}
+
+async function handleFile(f){
+  if(!f)return;
+  const t=localStorage.getItem('session_token');
+  if(!t){alert('请先保存API Key');return;}
+  const fd=new FormData();
+  fd.append('file',f);
+  const r=await fetch(API+'/upload',{method:'POST',headers:{'Authorization':'Bearer '+t},body:fd});
+  const d=await r.json();
+  if(d.file_id){
+    addMsg('user','上传了文件: '+f.name);
+    addMsg('assistant','文件已上传，正在分析...');
+  }
+}
+
+document.getElementById('userInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}
+});
+async function exportChat(fmt){const t=localStorage.getItem("session_token");if(!t){alert("请先保存API Key");return;}fetch(API+"/export_single",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content:currentExportContent,format:fmt,session_token:t})}).then(r=>r.json()).then(d=>{if(d.file){const bin=atob(d.file);const arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);const blob=new Blob([arr]);const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=d.filename;a.click();URL.revokeObjectURL(url);}else if(d.error)alert(d.error);}).catch(e=>alert(e));}</script>
 </body>
 </html>

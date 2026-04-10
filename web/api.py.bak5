@@ -1,5 +1,5 @@
-import traceback
 
+from web.chat_handler import handle_chat
 # 智能模型选择
 def get_model_for_task(task_type, text_len):
     """根据任务类型和复杂度选择模型"""
@@ -223,58 +223,7 @@ async def generate_cases(req: AnalyzeRequest):
 
 @app.get("/health")
 async def health():
-    """Web自检接口 - 冒烟测试"""
-    results = {
-        "status": "ok",
-        "timestamp": datetime.now().isoformat(),
-        "checks": []
-    }
-    
-    # 1. API服务检查
-    results["checks"].append({"name": "API服务", "status": "pass", "message": "运行正常"})
-    
-    # 2. 检查session存储
-    try:
-        session_count = len(sessions)
-        results["checks"].append({"name": "会话管理", "status": "pass", "message": f"正常，{session_count}个活跃会话"})
-    except Exception as e:
-        results["checks"].append({"name": "会话管理", "status": "fail", "message": str(e), "traceback": traceback.format_exc()})
-        results["status"] = "error"
-    
-    # 3. 检查上传目录
-    try:
-        upload_dir = "uploads"
-        if os.path.exists(upload_dir):
-            file_count = len(os.listdir(upload_dir))
-            results["checks"].append({"name": "文件存储", "status": "pass", "message": f"目录正常，{file_count}个文件"})
-        else:
-            os.makedirs(upload_dir, exist_ok=True)
-            results["checks"].append({"name": "文件存储", "status": "pass", "message": "目录已创建"})
-    except Exception as e:
-        results["checks"].append({"name": "文件存储", "status": "fail", "message": str(e), "traceback": traceback.format_exc()})
-        results["status"] = "error"
-    
-    # 4. 检查导出依赖
-    try:
-        import reportlab
-        import openpyxl
-        import docx
-        results["checks"].append({"name": "导出功能", "status": "pass", "message": "PDF/Excel/Word导出正常"})
-    except ImportError as e:
-        results["checks"].append({"name": "导出功能", "status": "fail", "message": f"依赖缺失: {str(e)}", "traceback": traceback.format_exc()})
-        results["status"] = "error"
-    
-    # 5. 检查配置目录
-    try:
-        config_dir = "config"
-        if os.path.exists(config_dir):
-            results["checks"].append({"name": "配置目录", "status": "pass", "message": "存在"})
-        else:
-            results["checks"].append({"name": "配置目录", "status": "warn", "message": "不存在（可选）"})
-    except Exception as e:
-        results["checks"].append({"name": "配置目录", "status": "fail", "message": str(e)})
-    
-    return results
+    return {"status": "ok"}
 
 from datetime import datetime
 from fastapi.responses import Response
@@ -306,11 +255,10 @@ async def export_report(req: AnalyzeRequest):
         return {"success": False, "error": str(e)}
 
 
-from web.chat_handler import handle_chat
-
 @app.post("/chat")
 async def chat(req: dict):
     return await handle_chat(req, get_api_key, get_config_with_key)
+
 
 @app.post("/export_chat")
 async def export_chat(req: dict):
@@ -442,81 +390,6 @@ from datetime import datetime
 from io import BytesIO
 
 @app.post("/export_single")
-async def export_single(req: dict):
-    key = get_api_key(req.get("session_token", ""))
-    if not key:
-        return {"success": False, "error": "未配置API Key"}
-    
-    content = req.get("content", "")
-    fmt = req.get("format", "md")
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    try:
-        if fmt == "md":
-            return {"success": True, "file": base64.b64encode(content.encode()).decode(), "filename": f"testowl_{ts}.md"}
-        
-        elif fmt == "pdf":
-            from reportlab.lib.pagesizes import A4
-            from reportlab.pdfgen import canvas
-            buf = BytesIO()
-            c = canvas.Canvas(buf, pagesize=A4)
-            y = 800
-            for line in content.split('\n'):
-                if y < 50: c.showPage(); y = 800
-                c.drawString(50, y, line[:80][:200])
-                y -= 15
-            c.save()
-            return {"success": True, "file": base64.b64encode(buf.getvalue()).decode(), "filename": f"testowl_{ts}.pdf"}
-        
-        elif fmt == "xlsx":
-            from openpyxl import Workbook
-            wb = Workbook()
-            ws = wb.active
-            for i, line in enumerate(content.split('\n'), 1):
-                ws.cell(row=i, column=1, value=line[:32000])
-            buf = BytesIO()
-            wb.save(buf)
-            return {"success": True, "file": base64.b64encode(buf.getvalue()).decode(), "filename": f"testowl_{ts}.xlsx"}
-        
-        elif fmt == "docx":
-            from docx import Document
-            doc = Document()
-            for line in content.split('\n'):
-                doc.add_paragraph(line)
-            buf = BytesIO()
-            doc.save(buf)
-            return {"success": True, "file": base64.b64encode(buf.getvalue()).decode(), "filename": f"testowl_{ts}.docx"}
-        
-        return {"success": False, "error": "不支持的格式"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-# ========== Web自检和开发者模式API ==========
-
-@app.post("/test/run")
-async def run_test():
-    """运行Web自检（占位）"""
-    return {"status": "developing", "message": "功能开发中"}
-
-@app.get("/files/list")
-async def list_files(path: str = "/root/testowl"):
-    """获取文件列表（开发者模式）"""
-    import os
-    try:
-        files = os.listdir(path)
-        return {"files": files, "path": path}
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.get("/files/read")
-async def read_file_api(path: str):
-    """读取文件内容（开发者模式）"""
-    try:
-        with open(path, 'r') as f:
-            content = f.read()
-        return {"content": content, "path": path}
-    except Exception as e:
-        return {"error": str(e)}
 
 @app.post("/files/save")
 async def save_file_api(req: dict):
