@@ -65,6 +65,15 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 .upload-btn{color:#6b5b4f;cursor:pointer;padding:4px;transition:color 0.2s}
 .upload-btn:hover{color:#c4a77d}
 
+/* 导出按钮 */
+.export-btn{color:#6b5b4f;cursor:pointer;padding:4px;transition:color 0.2s;position:relative}
+.export-btn:hover{color:#c4a77d}
+.export-menu{display:none;position:absolute;bottom:40px;right:0;background:#fff;border:1px solid #e8e4df;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);min-width:120px;z-index:100}
+.export-menu.show{display:block}
+.export-menu-item{padding:10px 16px;cursor:pointer;font-size:13px;color:#5c4b37;transition:all 0.2s;border-bottom:1px solid #f5f0e8}
+.export-menu-item:last-child{border-bottom:none}
+.export-menu-item:hover{background:#f5f0e8}
+
 /* 设置面板 */
 .tool-panel{display:none;padding:40px;max-width:800px;margin:0 auto}
 .tool-panel.active{display:block}
@@ -116,6 +125,15 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 </div>
 <input type="file" id="fileInput" style="display:none" onchange="handleFile(this.files[0])">
 <textarea id="userInput" placeholder="输入消息，按 Enter 发送..." rows="1"></textarea>
+<div class="export-btn" onclick="toggleExportMenu(event)">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+<div class="export-menu" id="exportMenu">
+<div class="export-menu-item" onclick="exportChat('md')">导出 Markdown</div>
+<div class="export-menu-item" onclick="exportChat('pdf')">导出 PDF</div>
+<div class="export-menu-item" onclick="exportChat('xlsx')">导出 Excel</div>
+<div class="export-menu-item" onclick="exportChat('docx')">导出 Word</div>
+</div>
+</div>
 <button id="sendBtn" onclick="sendMessage()">发送</button>
 </div>
 </div>
@@ -373,6 +391,69 @@ document.getElementById('userInput').addEventListener('keydown', function(e) {
     sendMessage();
   }
 });
+
+// 切换导出菜单
+document.addEventListener('click', function(e) {
+  const menu = document.getElementById('exportMenu');
+  if (!e.target.closest('.export-btn')) {
+    menu.classList.remove('show');
+  }
+});
+
+function toggleExportMenu(e) {
+  e.stopPropagation();
+  document.getElementById('exportMenu').classList.toggle('show');
+}
+
+// 导出聊天记录
+async function exportChat(format) {
+  const token = localStorage.getItem('session_token');
+  if (!token) {
+    alert('请先设置 API Key');
+    return;
+  }
+  
+  // 隐藏菜单
+  document.getElementById('exportMenu').classList.remove('show');
+  
+  try {
+    const res = await fetch(API + '/export', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({
+        format: format,
+        session_token: token
+      })
+    });
+    
+    if (!res.ok) throw new Error('导出失败');
+    
+    // 获取文件名
+    const disposition = res.headers.get('content-disposition');
+    let filename = 'export.' + format;
+    if (disposition) {
+      const match = disposition.match(/filename="(.+)"/);
+      if (match) filename = match[1];
+    }
+    
+    // 下载文件
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+  } catch (e) {
+    alert('导出失败: ' + e.message);
+  }
+}
 
 // 系统自检
 async function checkHealth() {
