@@ -6,15 +6,15 @@
 <title>TestOwl - 游戏测试助手</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f5f5;display:flex;min-height:100vh}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#faf8f5;display:flex;min-height:100vh}
 
-/* 侧边栏 */
-.sidebar{width:200px;background:#fff;padding:20px;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0}
-.sidebar h1{font-size:18px;color:#333;margin-bottom:30px;font-weight:600;display:flex;align-items:center;gap:8px}
-.sidebar h1::before{content:"🦉";font-size:20px}
-.nav-item{padding:12px;margin:4px 0;border-radius:8px;cursor:pointer;color:#666;font-size:14px;display:flex;align-items:center;transition:all 0.2s}
-.nav-item:hover{background:#f0f0f0;color:#333}
-.nav-item.active{background:#e3f2fd;color:#1976d2}
+/* 侧边栏 - 浅米色 */
+.sidebar{width:200px;background:#fdfcfa;padding:20px;border-right:1px solid #e8e4df;display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0}
+.sidebar h1{font-size:18px;color:#5c4b37;margin-bottom:30px;font-weight:600;display:flex;align-items:center;gap:8px}
+.sidebar h1 svg{width:24px;height:24px;color:#c4a77d}
+.nav-item{padding:12px;margin:4px 0;border-radius:8px;cursor:pointer;color:#6b5b4f;font-size:14px;display:flex;align-items:center;transition:all 0.2s}
+.nav-item:hover{background:#f5f0e8;color:#5c4b37}
+.nav-item.active{background:#e8dfd3;color:#8b7355}
 .nav-item svg{width:18px;height:18px;margin-right:10px}
 
 /* 主区域 */
@@ -24,12 +24,12 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 .chat-view{flex:1;display:flex;flex-direction:column;max-width:900px;margin:0 auto;width:100%;height:100vh;position:relative}
 
 /* 欢迎消息 */
-.welcome{text-align:center;padding:60px 20px;color:#666}
-.welcome h2{font-size:24px;color:#333;margin-bottom:16px}
+.welcome{text-align:center;padding:60px 20px;color:#6b5b4f}
+.welcome h2{font-size:24px;color:#5c4b37;margin-bottom:16px}
 .welcome p{font-size:14px;line-height:1.8;max-width:500px;margin:0 auto}
 .welcome .quick-actions{display:flex;gap:10px;justify-content:center;margin-top:30px;flex-wrap:wrap}
-.welcome .quick-btn{padding:10px 20px;background:#fff;border:1px solid #e0e0e0;border-radius:20px;cursor:pointer;font-size:13px;color:#666;transition:all 0.2s}
-.welcome .quick-btn:hover{background:#e3f2fd;border-color:#1976d2;color:#1976d2}
+.welcome .quick-btn{padding:10px 20px;background:#fff;border:1px solid #e8e4df;border-radius:20px;cursor:pointer;font-size:13px;color:#6b5b4f;transition:all 0.2s}
+.welcome .quick-btn:hover{background:#f5f0e8;border-color:#c4b8a8;color:#5c4b37}
 
 /* 消息列表 */
 .chat-messages{flex:1;overflow-y:auto;padding:20px}
@@ -37,58 +37,61 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 
 .msg.user{justify-content:flex-end}
-.msg.user .bubble{background:#1976d2;color:white;border-radius:20px 20px 4px 20px}
+.msg.user .bubble{background:#c4a77d;color:white;border-radius:20px 20px 4px 20px}
 
 .msg.assistant{justify-content:flex-start}
-.msg.assistant .bubble{background:#fff;color:#333;border-radius:20px 20px 20px 4px;border:1px solid #e0e0e0}
+.msg.assistant .bubble{background:#fff;color:#5c4b37;border-radius:20px 20px 20px 4px;border:1px solid #e8e4df}
 
 .bubble{padding:14px 18px;max-width:75%;font-size:14px;line-height:1.7;word-wrap:break-word}
 
 /* AI头像 */
-.ai-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);display:flex;align-items:center;justify-content:center;color:white;font-size:16px;margin-right:10px;flex-shrink:0}
+.ai-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#c4a77d 0%,#a08060 100%);display:flex;align-items:center;justify-content:center;color:white;font-size:16px;margin-right:10px;flex-shrink:0}
 
 /* 思考中动画 */
-.thinking{display:flex;align-items:center;gap:4px;padding:12px 18px;background:#f5f5f5;border-radius:20px;color:#666;font-size:13px}
-.thinking-dot{width:8px;height:8px;background:#999;border-radius:50%;animation:thinking 1.4s infinite}
+.thinking{display:flex;align-items:center;gap:4px;padding:12px 18px;background:#f5f0e8;border-radius:20px;color:#6b5b4f;font-size:13px}
+.thinking-dot{width:8px;height:8px;background:#c4a77d;border-radius:50%;animation:thinking 1.4s infinite}
 .thinking-dot:nth-child(2){animation-delay:0.2s}
 .thinking-dot:nth-child(3){animation-delay:0.4s}
 @keyframes thinking{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-10px)}}
 
 /* 输入区域 */
-.chat-input-area{position:fixed;bottom:0;left:200px;right:0;padding:20px;background:#f5f5f5}
-.input-box{position:relative;max-width:900px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e0e0e0;padding:14px 16px;display:flex;align-items:flex-end;gap:10px}
-.input-box:focus-within{border-color:#1976d2;box-shadow:0 2px 8px rgba(25,118,210,0.1)}
+.chat-input-area{position:fixed;bottom:0;left:200px;right:0;padding:20px;background:#faf8f5}
+.input-box{position:relative;max-width:900px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e8e4df;padding:14px 16px;display:flex;align-items:flex-end;gap:10px}
+.input-box:focus-within{border-color:#c4a77d;box-shadow:0 2px 8px rgba(196,167,125,0.15)}
 .input-box textarea{flex:1;border:none;outline:none;font-size:14px;resize:none;min-height:24px;max-height:150px;font-family:inherit;line-height:1.5}
-.input-box button{padding:8px 16px;background:#1976d2;color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;transition:all 0.2s}
-.input-box button:hover{background:#1565c0}
-.input-box button:disabled{background:#ccc;cursor:not-allowed}
-.upload-btn{color:#666;cursor:pointer;padding:4px;transition:color 0.2s}
-.upload-btn:hover{color:#1976d2}
+.input-box button{padding:8px 16px;background:#c4a77d;color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;transition:all 0.2s}
+.input-box button:hover{background:#b08d65}
+.input-box button:disabled{background:#d4c8b8;cursor:not-allowed}
+.upload-btn{color:#6b5b4f;cursor:pointer;padding:4px;transition:color 0.2s}
+.upload-btn:hover{color:#c4a77d}
 
 /* 设置面板 */
 .tool-panel{display:none;padding:40px;max-width:800px;margin:0 auto}
 .tool-panel.active{display:block}
-.tool-panel h2{font-size:20px;color:#333;margin-bottom:24px}
-.setting-item{background:#fff;padding:20px;border-radius:12px;margin-bottom:16px;border:1px solid #e0e0e0}
-.setting-item label{display:block;color:#333;font-size:14px;margin-bottom:8px;font-weight:500}
-.setting-item input{width:100%;padding:12px;border:1px solid #e0e0e0;border-radius:8px;font-size:14px}
-.setting-item input:focus{outline:none;border-color:#1976d2}
-.btn{padding:12px 24px;background:#1976d2;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;transition:all 0.2s}
-.btn:hover{background:#1565c0}
+.tool-panel h2{font-size:20px;color:#5c4b37;margin-bottom:24px}
+.setting-item{background:#fff;padding:20px;border-radius:12px;margin-bottom:16px;border:1px solid #e8e4df}
+.setting-item label{display:block;color:#5c4b37;font-size:14px;margin-bottom:8px;font-weight:500}
+.setting-item input{width:100%;padding:12px;border:1px solid #e8e4df;border-radius:8px;font-size:14px}
+.setting-item input:focus{outline:none;border-color:#c4a77d}
+.btn{padding:12px 24px;background:#c4a77d;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;transition:all 0.2s}
+.btn:hover{background:#b08d65}
 
 /* 代码块样式 */
-.bubble pre{background:#f5f5f5;padding:12px;border-radius:8px;overflow-x:auto;font-size:12px;margin:10px 0}
-.bubble code{font-family:'Consolas','Monaco',monospace;background:#f5f5f0;padding:2px 6px;border-radius:4px;font-size:12px}
+.bubble pre{background:#f8f5f0;padding:12px;border-radius:8px;overflow-x:auto;font-size:12px;margin:10px 0}
+.bubble code{font-family:'Consolas','Monaco',monospace;background:#f8f5f0;padding:2px 6px;border-radius:4px;font-size:12px}
 </style>
 </head>
 <body>
 <div class="sidebar">
-<h1>TestOwl</h1>
+<h1><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z"/><circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/><path d="M12 17c1.5 0 2.5-.83 3-1.5"/></svg>TestOwl</h1>
 <div class="nav-item active" onclick="switchView('chat')">
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>对话
 </div>
 <div class="nav-item" onclick="switchView('apikey')">
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>API设置
+</div>
+<div class="nav-item" onclick="switchView('health')">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>系统自检
 </div>
 </div>
 
@@ -96,13 +99,13 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 <div id="chatView" class="chat-view">
 <div class="chat-messages" id="chatMessages">
 <div class="welcome">
-<h2>👋 你好，我是 TestOwl</h2>
+<h2>你好，我是 TestOwl</h2>
 <p>你的游戏测试智能助手。我可以帮你：</p>
 <div class="quick-actions">
-<div class="quick-btn" onclick="setInput('分析这个需求文档')">📄 分析需求</div>
-<div class="quick-btn" onclick="setInput('生成测试用例')">📝 生成用例</div>
-<div class="quick-btn" onclick="setInput('检查配置表')">📊 检查表格</div>
-<div class="quick-btn" onclick="setInput('如何设计性能测试？')">� 测试建议</div>
+<div class="quick-btn" onclick="setInput('分析这个需求文档')">分析需求</div>
+<div class="quick-btn" onclick="setInput('生成测试用例')">生成用例</div>
+<div class="quick-btn" onclick="setInput('检查配置表')">检查表格</div>
+<div class="quick-btn" onclick="setInput('如何设计性能测试？')">测试建议</div>
 </div>
 </div>
 </div>
@@ -125,7 +128,19 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxx">
 </div>
 <button class="btn" onclick="saveKey()">保存设置</button>
-<span id="keyStatus" style="margin-left:15px;color:#666"></span>
+<span id="keyStatus" style="margin-left:15px;color:#8b7355"></span>
+</div>
+
+<div id="health" class="tool-panel">
+<h2>系统自检</h2>
+<div class="setting-item">
+<label>系统状态</label>
+<div id="healthStatus" style="padding:15px;background:#f8f5f0;border-radius:8px;margin-top:10px;font-size:14px;color:#6b5b4f">
+<p>点击"开始检测"检查系统各项服务状态</p>
+</div>
+</div>
+<button class="btn" onclick="checkHealth()">开始检测</button>
+<span id="checkStatus" style="margin-left:15px;color:#8b7355"></span>
 </div>
 </div>
 
@@ -178,7 +193,7 @@ function addMessage(role, content, isTyping = false) {
   div.className = 'msg ' + role;
   
   if (role === 'assistant') {
-    div.innerHTML = '<div class="ai-avatar">🦉</div><div class="bubble" id="msg-' + Date.now() + '"></div>';
+    div.innerHTML = '<div class="ai-avatar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z"/><circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/><path d="M12 17c1.5 0 2.5-.83 3-1.5"/></svg></div><div class="bubble" id="msg-' + Date.now() + '"></div>';
   } else {
     div.innerHTML = '<div class="bubble">' + escapeHtml(content) + '</div>';
   }
@@ -220,7 +235,7 @@ function showThinking() {
   const div = document.createElement('div');
   div.className = 'msg assistant';
   div.id = 'thinking-msg';
-  div.innerHTML = '<div class="ai-avatar">🦉</div><div class="thinking"><div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div>正在思考...</div>';
+  div.innerHTML = '<div class="ai-avatar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z"/><circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/><path d="M12 17c1.5 0 2.5-.83 3-1.5"/></svg></div><div class="thinking"><div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div>正在思考...</div>';
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
 }
@@ -307,7 +322,7 @@ async function handleFile(file) {
   formData.append('file', file);
   
   try {
-    addMessage('user', '📎 上传文件: ' + file.name);
+    addMessage('user', '[文件] ' + file.name);
     showThinking();
     
     const res = await fetch(API + '/upload', {
@@ -358,6 +373,51 @@ document.getElementById('userInput').addEventListener('keydown', function(e) {
     sendMessage();
   }
 });
+
+// 系统自检
+async function checkHealth() {
+  const btn = document.querySelector('#health .btn');
+  const statusEl = document.getElementById('checkStatus');
+  const healthEl = document.getElementById('healthStatus');
+  
+  btn.disabled = true;
+  statusEl.textContent = '检测中...';
+  healthEl.innerHTML = '<p>正在检查系统各项服务...</p>';
+  
+  try {
+    const res = await fetch(API + '/health', {
+      method: 'GET',
+      headers: {'Content-Type': 'application/json'}
+    });
+    
+    const data = await res.json();
+    
+    let html = '<div style="line-height:2">';
+    html += '<p><strong>服务状态：</strong>' + (data.status === 'healthy' ? '✅ 正常' : '❌ 异常') + '</p>';
+    
+    if (data.checks) {
+      html += '<hr style="border:none;border-top:1px solid #e8e4df;margin:15px 0">';
+      html += '<p><strong>详细检查：</strong></p>';
+      for (const [key, value] of Object.entries(data.checks)) {
+        const icon = value.status === 'ok' ? '✅' : (value.status === 'warning' ? '⚠️' : '❌');
+        html += '<p style="padding-left:15px">' + icon + ' <strong>' + key + ':</strong> ' + value.message + '</p>';
+      }
+    }
+    
+    html += '<hr style="border:none;border-top:1px solid #e8e4df;margin:15px 0">';
+    html += '<p style="color:#8b7355;font-size:12px">检测时间: ' + new Date().toLocaleString() + '</p>';
+    html += '</div>';
+    
+    healthEl.innerHTML = html;
+    statusEl.textContent = '✓ 检测完成';
+    
+  } catch (e) {
+    healthEl.innerHTML = '<p style="color:#c45c4b">❌ 检测失败: ' + e.message + '</p>';
+    statusEl.textContent = '检测失败';
+  } finally {
+    btn.disabled = false;
+  }
+}
 </script>
 </body>
 </html>
