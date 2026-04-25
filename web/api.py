@@ -426,25 +426,44 @@ async def export_single(req: dict):
             from reportlab.pdfbase import pdfmetrics
             from reportlab.pdfbase.ttfonts import TTFont
             
-            # 注册中文字体（如果有的话）
-            try:
-                pdfmetrics.registerFont(TTFont('SimSun', '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc'))
-                font = 'SimSun'
-            except:
-                font = 'Helvetica'
+            # 注册中文字体（尝试多个可能的路径）
+            font = 'Helvetica'
+            font_paths = [
+                '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+                '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+                '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+            ]
+            for font_path in font_paths:
+                try:
+                    if os.path.exists(font_path):
+                        pdfmetrics.registerFont(TTFont('CustomFont', font_path))
+                        font = 'CustomFont'
+                        break
+                except:
+                    continue
             
             buffer = BytesIO()
             c = canvas.Canvas(buffer, pagesize=A4)
             c.setFont(font, 10)
             
-            # 简单的文本换行
+            # 简单的文本换行处理
             y = 800
             for line in content.split('\n'):
                 if y < 50:
                     c.showPage()
                     y = 800
-                c.drawString(50, y, line[:80])
-                y -= 15
+                    c.setFont(font, 10)
+                # 处理长行，每行最多 80 个字符
+                for i in range(0, len(line), 80):
+                    segment = line[i:i+80]
+                    c.drawString(50, y, segment)
+                    y -= 15
+                    if y < 50:
+                        c.showPage()
+                        y = 800
+                        c.setFont(font, 10)
             
             c.save()
             file_bytes = buffer.getvalue()
@@ -475,7 +494,7 @@ async def export_single(req: dict):
             filename = f"testowl_{timestamp}.docx"
         
         else:
-            return {"success": False, "error": "不支持的格式"}
+            return {"success": False, "error": f"不支持的格式: {fmt}"}
         
         return {
             "success": True,
@@ -484,11 +503,8 @@ async def export_single(req: dict):
         }
     
     except Exception as e:
-        return {"success": False, "error": str(e)}
-
-import base64
-from datetime import datetime
-from io import BytesIO
+        import traceback
+        return {"success": False, "error": f"导出失败: {str(e)}", "traceback": traceback.format_exc()}
 
 
 @app.post("/test/run")
