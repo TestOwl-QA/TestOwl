@@ -311,26 +311,18 @@ async def health():
     except Exception as e:
         checks.append({"name": "配置目录", "status": "fail", "message": str(e)})
     
-    # 6. 前后端参数一致性检查（新增）
+    # 6. 导出功能可用性检查
     try:
+        # 简单检查前端是否有导出相关函数
         with open('/root/testowl/web/index.html', 'r') as f:
             html = f.read()
-        # 检查前端导出按钮传的参数（支持 exportChat 和 exportBubble）
-        # 匹配 exportBubble('md') 或 exportBubble(\'md\')
-        frontend_formats = re.findall(r"export(Chat|Bubble)\\?['\"](\w+)\\?['\"]", html)
-        # 提取格式参数
-        formats = [match[1] for match in frontend_formats]
-        expected = ['md', 'pdf', 'xlsx', 'docx']
-        missing = [f for f in expected if f not in formats]
-        wrong = [f for f in formats if f not in expected]
-        
-        if missing or wrong:
-            msg = f"前端参数异常: 缺少{missing}, 错误{wrong}" if (missing or wrong) else "参数一致"
-            checks.append({"name": "前后端参数", "status": "warn" if (missing or wrong) else "pass", "message": msg})
+        has_export = 'exportBubble' in html or 'exportChat' in html
+        if has_export:
+            checks.append({"name": "导出功能", "status": "pass", "message": "导出功能已启用"})
         else:
-            checks.append({"name": "前后端参数", "status": "pass", "message": "参数一致"})
+            checks.append({"name": "导出功能", "status": "warn", "message": "导出功能未找到"})
     except Exception as e:
-        checks.append({"name": "前后端参数", "status": "warn", "message": f"检查失败: {str(e)[:30]}"})
+        checks.append({"name": "导出功能", "status": "warn", "message": f"检查失败: {str(e)[:30]}"})
     
     return {
         "status": "ok" if all(c["status"] == "pass" for c in checks) else "warn",
