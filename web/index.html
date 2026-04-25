@@ -39,10 +39,23 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 .msg.user{justify-content:flex-end}
 .msg.user .bubble{background:#c4a77d;color:white;border-radius:20px 20px 4px 20px}
 
-.msg.assistant{justify-content:flex-start}
-.msg.assistant .bubble{background:#fff;color:#5c4b37;border-radius:20px 20px 20px 4px;border:1px solid #e8e4df}
+.msg.assistant{justify-content:flex-start;position:relative}
+.msg.assistant .bubble{background:#fff;color:#5c4b37;border-radius:20px 20px 20px 4px;border:1px solid #e8e4df;position:relative}
 
 .bubble{padding:14px 18px;max-width:75%;font-size:14px;line-height:1.7;word-wrap:break-word}
+
+/* 气泡导出按钮 */
+.bubble-export{position:absolute;top:8px;right:8px;opacity:0;transition:opacity 0.2s;padding:4px;cursor:pointer;color:#c4a77d;background:#fff;border-radius:4px;border:1px solid #e8e4df}
+.msg.assistant:hover .bubble-export{opacity:1}
+.bubble-export:hover{background:#f5f0e8}
+.bubble-export svg{width:16px;height:16px}
+
+/* 气泡导出菜单 */
+.bubble-export-menu{display:none;position:absolute;top:32px;right:0;background:#fff;border:1px solid #e8e4df;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);min-width:100px;z-index:100}
+.bubble-export-menu.show{display:block}
+.bubble-export-menu-item{padding:8px 12px;cursor:pointer;font-size:12px;color:#5c4b37;transition:all 0.2s;border-bottom:1px solid #f5f0e8}
+.bubble-export-menu-item:last-child{border-bottom:none}
+.bubble-export-menu-item:hover{background:#f5f0e8}
 
 /* AI头像 */
 .ai-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#c4a77d 0%,#a08060 100%);display:flex;align-items:center;justify-content:center;color:white;font-size:16px;margin-right:10px;flex-shrink:0}
@@ -191,9 +204,10 @@ function addMessage(role, content, isTyping = false) {
   const container = document.getElementById('chatMessages');
   const div = document.createElement('div');
   div.className = 'msg ' + role;
+  const msgId = 'msg-' + Date.now();
   
   if (role === 'assistant') {
-    div.innerHTML = '<div class="ai-avatar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z"/><circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/><path d="M12 17c1.5 0 2.5-.83 3-1.5"/></svg></div><div class="bubble" id="msg-' + Date.now() + '"></div>';
+    div.innerHTML = '<div class="ai-avatar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z"/><circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/><path d="M12 17c1.5 0 2.5-.83 3-1.5"/></svg></div><div class="bubble" id="' + msgId + '"><div class="bubble-export" onclick="showExportMenu(event, \'' + msgId + '\')" title="导出报告"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></div></div>';
   } else {
     div.innerHTML = '<div class="bubble">' + escapeHtml(content) + '</div>';
   }
@@ -374,20 +388,105 @@ document.getElementById('userInput').addEventListener('keydown', function(e) {
   }
 });
 
-// 切换导出菜单
+// 当前选中的消息ID
+let currentExportMsgId = null;
+
+// 显示气泡导出菜单
+function showExportMenu(e, msgId) {
+  e.stopPropagation();
+  currentExportMsgId = msgId;
+  
+  // 移除已有的菜单
+  const existingMenu = document.querySelector('.bubble-export-menu');
+  if (existingMenu) existingMenu.remove();
+  
+  // 创建菜单
+  const menu = document.createElement('div');
+  menu.className = 'bubble-export-menu show';
+  menu.innerHTML = '<div class="bubble-export-menu-item" onclick="exportBubble(\'md\')">Markdown</div><div class="bubble-export-menu-item" onclick="exportBubble(\'pdf\')">PDF</div><div class="bubble-export-menu-item" onclick="exportBubble(\'xlsx\')">Excel</div><div class="bubble-export-menu-item" onclick="exportBubble(\'docx\')">Word</div>';
+  
+  e.currentTarget.appendChild(menu);
+  
+  // 点击其他地方关闭
+  setTimeout(() => {
+    document.addEventListener('click', function closeMenu() {
+      menu.remove();
+      document.removeEventListener('click', closeMenu);
+    }, {once: true});
+  }, 0);
+}
+
+// 导出单个气泡
+async function exportBubble(format) {
+  if (!currentExportMsgId) return;
+  
+  const bubble = document.getElementById(currentExportMsgId);
+  if (!bubble) return;
+  
+  // 获取气泡内容（去掉导出按钮）
+  const content = bubble.innerText.replace(/导出报告/, '').trim();
+  
+  const token = localStorage.getItem('session_token');
+  if (!token) {
+    alert('请先设置 API Key');
+    return;
+  }
+  
+  try {
+    const res = await fetch(API + '/export', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({
+        format: format,
+        session_token: token,
+        content: content  // 发送气泡内容
+      })
+    });
+    
+    if (!res.ok) throw new Error('导出失败');
+    
+    // 获取文件名
+    const disposition = res.headers.get('content-disposition');
+    let filename = 'report.' + format;
+    if (disposition) {
+      const match = disposition.match(/filename="(.+)"/);
+      if (match) filename = match[1];
+    }
+    
+    // 下载文件
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+  } catch (e) {
+    alert('导出失败: ' + e.message);
+  }
+}
+
+// 切换导出菜单（旧代码，保留兼容）
 document.addEventListener('click', function(e) {
   const menu = document.getElementById('exportMenu');
-  if (!e.target.closest('.export-btn')) {
+  if (menu && !e.target.closest('.export-btn')) {
     menu.classList.remove('show');
   }
 });
 
 function toggleExportMenu(e) {
   e.stopPropagation();
-  document.getElementById('exportMenu').classList.toggle('show');
+  const menu = document.getElementById('exportMenu');
+  if (menu) menu.classList.toggle('show');
 }
 
-// 导出聊天记录
+// 导出聊天记录（旧代码，保留兼容）
 async function exportChat(format) {
   const token = localStorage.getItem('session_token');
   if (!token) {
