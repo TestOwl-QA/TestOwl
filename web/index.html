@@ -45,13 +45,13 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 .bubble{padding:14px 18px;max-width:75%;font-size:14px;line-height:1.7;word-wrap:break-word}
 
 /* 气泡导出按钮 */
-.bubble-export{position:absolute;top:8px;right:8px;opacity:0;transition:opacity 0.2s;padding:4px;cursor:pointer;color:#c4a77d;background:#fff;border-radius:4px;border:1px solid #e8e4df}
+.bubble-export{position:absolute;top:4px;right:4px;opacity:0;transition:opacity 0.2s;padding:3px;cursor:pointer;color:#c4a77d;background:#fff;border-radius:4px;border:1px solid #e8e4df;z-index:10}
 .msg.assistant:hover .bubble-export{opacity:1}
 .bubble-export:hover{background:#f5f0e8}
-.bubble-export svg{width:16px;height:16px}
+.bubble-export svg{width:14px;height:14px}
 
 /* 气泡导出菜单 */
-.bubble-export-menu{display:none;position:absolute;top:32px;right:0;background:#fff;border:1px solid #e8e4df;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);min-width:100px;z-index:100}
+.bubble-export-menu{display:none;position:absolute;top:28px;right:0;background:#fff;border:1px solid #e8e4df;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);min-width:100px;z-index:100}
 .bubble-export-menu.show{display:block}
 .bubble-export-menu-item{padding:8px 12px;cursor:pointer;font-size:12px;color:#5c4b37;transition:all 0.2s;border-bottom:1px solid #f5f0e8}
 .bubble-export-menu-item:last-child{border-bottom:none}
@@ -221,25 +221,31 @@ function addMessage(role, content, isTyping = false) {
   return null;
 }
 
-// 打字机效果
+// 打字机效果（按段落显示，不逐字符）
 async function typeWriter(element, text, speed = 30) {
   isTyping = true;
-  let i = 0;
   element.innerHTML = '';
   
   return new Promise(resolve => {
-    function type() {
-      if (i < text.length) {
-        element.innerHTML += escapeHtml(text.charAt(i));
-        i++;
-        setTimeout(type, speed);
+    // 先将文本分段
+    const paragraphs = text.split('\n');
+    let currentIndex = 0;
+    
+    function showNext() {
+      if (currentIndex < paragraphs.length) {
+        // 显示已处理的所有段落
+        const processedText = paragraphs.slice(0, currentIndex + 1).join('\n');
+        element.innerHTML = formatText(processedText);
+        currentIndex++;
+        setTimeout(showNext, Math.min(speed * 3, 100));
       } else {
         isTyping = false;
+        // 最终格式化
         element.innerHTML = formatText(text);
         resolve();
       }
     }
-    type();
+    showNext();
   });
 }
 
