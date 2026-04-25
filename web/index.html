@@ -3,6 +3,7 @@
 <head>
 <link rel="icon" href="/assets/favicon.png" type="image/png">
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>TestOwl - 游戏测试助手</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -96,6 +97,75 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 /* 代码块样式 */
 .bubble pre{background:#f8f5f0;padding:12px;border-radius:8px;overflow-x:auto;font-size:12px;margin:10px 0}
 .bubble code{font-family:'Consolas','Monaco',monospace;background:#f8f5f0;padding:2px 6px;border-radius:4px;font-size:12px}
+
+/* 响应式设计 - 平板 */
+@media (max-width: 1024px) {
+  .sidebar{width:180px}
+  .main{margin-left:180px}
+  .chat-input-area{left:180px}
+  .chat-view{max-width:100%;padding:0 15px}
+  .bubble{max-width:85%}
+}
+
+/* 响应式设计 - 小平板 */
+@media (max-width: 768px) {
+  .sidebar{width:160px;padding:15px}
+  .sidebar h1{font-size:16px}
+  .nav-item{font-size:13px;padding:10px}
+  .main{margin-left:160px}
+  .chat-input-area{left:160px;padding:15px}
+  .chat-messages{padding:15px 20px 100px 30px}
+  .bubble{max-width:90%;padding:16px 20px;font-size:13px}
+  .welcome h2{font-size:20px}
+  .welcome p{font-size:13px}
+  .input-box{padding:12px 14px}
+}
+
+/* 响应式设计 - 手机 */
+@media (max-width: 640px) {
+  .sidebar{display:none}
+  .main{margin-left:0}
+  .chat-input-area{left:0;padding:12px}
+  .chat-view{padding:0 10px}
+  .chat-messages{padding:10px 15px 100px 20px}
+  .bubble{max-width:95%;padding:14px 18px;font-size:13px}
+  .bubble-export{opacity:1;top:8px;right:8px;padding:4px}
+  .bubble-export svg{width:14px;height:14px}
+  .ai-avatar{width:32px;height:32px;margin-right:8px}
+  .msg{margin:15px 0}
+  .welcome{padding:40px 15px}
+  .welcome h2{font-size:18px}
+  .welcome .quick-btn{padding:8px 16px;font-size:12px}
+  .input-box{padding:10px 12px}
+  .input-box textarea{font-size:13px}
+  .input-box button{padding:6px 14px;font-size:12px}
+}
+
+/* 响应式设计 - 小屏手机 */
+@media (max-width: 375px) {
+  .chat-messages{padding:8px 12px 90px 15px}
+  .bubble{max-width:98%;padding:12px 16px;font-size:12px;line-height:1.7}
+  .welcome h2{font-size:16px}
+  .welcome p{font-size:12px}
+}
+
+/* 高分辨率屏幕适配 */
+@media (min-width: 1920px) {
+  .chat-view{max-width:1100px}
+  .bubble{font-size:15px;line-height:1.9}
+  .sidebar{width:220px}
+  .main{margin-left:220px}
+  .chat-input-area{left:220px}
+}
+
+/* 超宽屏幕 */
+@media (min-width: 2560px) {
+  .chat-view{max-width:1300px}
+  .bubble{font-size:16px}
+  .sidebar{width:240px}
+  .main{margin-left:240px}
+  .chat-input-area{left:240px}
+}
 </style>
 </head>
 <body>
