@@ -404,9 +404,67 @@ import base64
 from datetime import datetime
 from io import BytesIO
 
+def parse_analysis_content(content: str) -> dict:
+    """解析需求分析内容，提取结构化数据"""
+    result = {
+        "title": "需求分析报告",
+        "summary": "",
+        "test_points": [],
+        "risks": []
+    }
+    
+    lines = content.split('\n')
+    current_section = None
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # 检测标题
+        if line.startswith('需求分析') or line.startswith('测试分析'):
+            result["title"] = line
+            current_section = "summary"
+        elif line.startswith('测试点'):
+            current_section = "test_points"
+        elif line.startswith('风险'):
+            current_section = "risks"
+        elif current_section == "summary" and not result["summary"]:
+            result["summary"] = line
+        elif current_section == "test_points":
+            # 解析测试点 [P0] 标题 - 描述
+            if line.startswith('•') or line.startswith('-') or line.startswith('*'):
+                # 提取优先级和内容
+                import re
+                priority_match = re.search(r'\[([Pp]\d+)\]', line)
+                priority = priority_match.group(1).upper() if priority_match else "P2"
+                
+                # 移除 bullet 和优先级标记
+                clean_line = re.sub(r'^[•\-\*]\s*', '', line)
+                clean_line = re.sub(r'\[[Pp]\d+\]\s*', '', clean_line)
+                
+                # 分割标题和描述
+                if ' - ' in clean_line:
+                    title, desc = clean_line.split(' - ', 1)
+                else:
+                    title, desc = clean_line, ""
+                
+                result["test_points"].append({
+                    "priority": priority,
+                    "title": title.strip(),
+                    "description": desc.strip()
+                })
+        elif current_section == "risks":
+            if line.startswith('•') or line.startswith('-') or line.startswith('*'):
+                risk = re.sub(r'^[•\-\*]\s*', '', line)
+                result["risks"].append(risk)
+    
+    return result
+
+
 @app.post("/export_single")
 async def export_single(req: dict):
-    """导出单条消息"""
+    """导出单条消息为报告格式"""
     key = get_api_key(req.get("session_token", ""))
     if not key:
         return {"success": False, "error": "未配置API Key"}
@@ -415,83 +473,205 @@ async def export_single(req: dict):
     fmt = req.get("format", "md")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
+    # 解析内容
+    parsed = parse_analysis_content(content)
+    
     try:
         if fmt == "md":
-            filename = f"testowl_{timestamp}.md"
-            file_bytes = content.encode('utf-8')
+            # 生成 Markdown 报告
+            md_lines = [f"# {parsed['title']}", ""]
+            
+            if parsed['summary']:
+                md_lines.extend(["## 概述", parsed['summary'], ""])
+            
+            if parsed['test_points']:
+                md_lines.extend(["## 测试点", ""])
+                for tp in parsed['test_points']:
+                    md_lines.append(f"### [{tp['priority']}] {tp['title']}")
+                    if tp['description']:
+                        md_lines.append(f"{tp['description']}")
+                    md_lines.append("")
+            
+            if parsed['risks']:
+                md_lines.extend(["## 风险", ""])
+                for risk in parsed['risks']:
+                    md_lines.append(f"- {risk}")
+                md_lines.append("")
+            
+            file_bytes = '\n'.join(md_lines).encode('utf-8')
+            filename = f"test_report_{timestamp}.md"
         
         elif fmt == "pdf":
             from reportlab.lib.pagesizes import A4
-            from reportlab.pdfgen import canvas
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+            from reportlab.lib import colors
             from reportlab.pdfbase import pdfmetrics
             from reportlab.pdfbase.ttfonts import TTFont
             
-            # 注册中文字体（尝试多个可能的路径）
-            font = 'Helvetica'
+            # 注册中文字体
+            font_name = 'Helvetica'
             font_paths = [
                 '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
                 '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
                 '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
                 '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-                '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
             ]
             for font_path in font_paths:
                 try:
                     if os.path.exists(font_path):
-                        pdfmetrics.registerFont(TTFont('CustomFont', font_path))
-                        font = 'CustomFont'
+                        pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
+                        font_name = 'ChineseFont'
                         break
                 except:
                     continue
             
             buffer = BytesIO()
-            c = canvas.Canvas(buffer, pagesize=A4)
-            c.setFont(font, 10)
+            doc = SimpleDocTemplate(buffer, pagesize=A4,
+                                  rightMargin=72, leftMargin=72,
+                                  topMargin=72, bottomMargin=18)
             
-            # 简单的文本换行处理
-            y = 800
-            for line in content.split('\n'):
-                if y < 50:
-                    c.showPage()
-                    y = 800
-                    c.setFont(font, 10)
-                # 处理长行，每行最多 80 个字符
-                for i in range(0, len(line), 80):
-                    segment = line[i:i+80]
-                    c.drawString(50, y, segment)
-                    y -= 15
-                    if y < 50:
-                        c.showPage()
-                        y = 800
-                        c.setFont(font, 10)
+            styles = getSampleStyleSheet()
+            styles.add(ParagraphStyle(name='ChineseTitle', fontName=font_name, fontSize=18, spaceAfter=20))
+            styles.add(ParagraphStyle(name='ChineseHeading', fontName=font_name, fontSize=14, spaceAfter=12, spaceBefore=12))
+            styles.add(ParagraphStyle(name='ChineseBody', fontName=font_name, fontSize=10, spaceAfter=6))
             
-            c.save()
+            story = []
+            
+            # 标题
+            story.append(Paragraph(parsed['title'], styles['ChineseTitle']))
+            story.append(Spacer(1, 0.2*inch))
+            
+            # 概述
+            if parsed['summary']:
+                story.append(Paragraph("概述", styles['ChineseHeading']))
+                story.append(Paragraph(parsed['summary'], styles['ChineseBody']))
+                story.append(Spacer(1, 0.1*inch))
+            
+            # 测试点表格
+            if parsed['test_points']:
+                story.append(Paragraph("测试点", styles['ChineseHeading']))
+                story.append(Spacer(1, 0.1*inch))
+                
+                data = [['优先级', '测试项', '描述']]
+                for tp in parsed['test_points']:
+                    data.append([tp['priority'], tp['title'], tp['description'][:50] + '...' if len(tp['description']) > 50 else tp['description']])
+                
+                table = Table(data, colWidths=[0.8*inch, 2*inch, 3*inch])
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#c4a77d')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, -1), font_name),
+                    ('FONTSIZE', (0, 0), (-1, 0), 10),
+                    ('FONTSIZE', (0, 1), (-1, -1), 9),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f0e8')]),
+                ]))
+                story.append(table)
+                story.append(Spacer(1, 0.2*inch))
+            
+            # 风险
+            if parsed['risks']:
+                story.append(Paragraph("风险", styles['ChineseHeading']))
+                for risk in parsed['risks']:
+                    story.append(Paragraph(f"• {risk}", styles['ChineseBody']))
+            
+            doc.build(story)
             file_bytes = buffer.getvalue()
-            filename = f"testowl_{timestamp}.pdf"
+            filename = f"test_report_{timestamp}.pdf"
         
         elif fmt == "xlsx":
             from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            
             wb = Workbook()
-            ws = wb.active
-            ws.title = "导出内容"
-            for i, line in enumerate(content.split('\n'), 1):
-                ws.cell(row=i, column=1, value=line)
+            
+            # 测试点 Sheet
+            if parsed['test_points']:
+                ws = wb.active
+                ws.title = "测试点"
+                
+                # 标题行
+                headers = ['优先级', '测试项', '描述']
+                ws.append(headers)
+                
+                # 样式
+                header_fill = PatternFill(start_color='C4A77D', end_color='C4A77D', fill_type='solid')
+                header_font = Font(bold=True, color='FFFFFF')
+                for cell in ws[1]:
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                
+                # 数据行
+                for tp in parsed['test_points']:
+                    ws.append([tp['priority'], tp['title'], tp['description']])
+                
+                # 调整列宽
+                ws.column_dimensions['A'].width = 10
+                ws.column_dimensions['B'].width = 30
+                ws.column_dimensions['C'].width = 50
+            
+            # 风险 Sheet
+            if parsed['risks']:
+                ws_risk = wb.create_sheet("风险")
+                ws_risk.append(['序号', '风险描述'])
+                
+                header_fill = PatternFill(start_color='C4A77D', end_color='C4A77D', fill_type='solid')
+                header_font = Font(bold=True, color='FFFFFF')
+                for cell in ws_risk[1]:
+                    cell.fill = header_fill
+                    cell.font = header_font
+                
+                for i, risk in enumerate(parsed['risks'], 1):
+                    ws_risk.append([i, risk])
+                
+                ws_risk.column_dimensions['A'].width = 8
+                ws_risk.column_dimensions['B'].width = 80
             
             buffer = BytesIO()
             wb.save(buffer)
             file_bytes = buffer.getvalue()
-            filename = f"testowl_{timestamp}.xlsx"
+            filename = f"test_report_{timestamp}.xlsx"
         
         elif fmt == "docx":
             from docx import Document
+            from docx.shared import Pt, RGBColor, Inches
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            
             doc = Document()
-            for line in content.split('\n'):
-                doc.add_paragraph(line)
+            
+            # 标题
+            title = doc.add_heading(parsed['title'], 0)
+            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # 概述
+            if parsed['summary']:
+                doc.add_heading('概述', level=1)
+                doc.add_paragraph(parsed['summary'])
+            
+            # 测试点
+            if parsed['test_points']:
+                doc.add_heading('测试点', level=1)
+                for tp in parsed['test_points']:
+                    p = doc.add_paragraph()
+                    p.add_run(f"[{tp['priority']}] ").bold = True
+                    p.add_run(tp['title']).bold = True
+                    if tp['description']:
+                        doc.add_paragraph(tp['description'], style='List Bullet')
+            
+            # 风险
+            if parsed['risks']:
+                doc.add_heading('风险', level=1)
+                for risk in parsed['risks']:
+                    doc.add_paragraph(risk, style='List Bullet')
             
             buffer = BytesIO()
             doc.save(buffer)
             file_bytes = buffer.getvalue()
-            filename = f"testowl_{timestamp}.docx"
+            filename = f"test_report_{timestamp}.docx"
         
         else:
             return {"success": False, "error": f"不支持的格式: {fmt}"}

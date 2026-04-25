@@ -32,7 +32,7 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 .welcome .quick-btn:hover{background:#f5f0e8;border-color:#c4b8a8;color:#5c4b37}
 
 /* 消息列表 */
-.chat-messages{flex:1;overflow-y:auto;padding:20px}
+.chat-messages{flex:1;overflow-y:auto;padding:20px;padding-bottom:120px}
 .msg{margin:20px 0;display:flex;animation:fadeIn 0.3s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 
@@ -442,8 +442,14 @@ async function exportBubble(format) {
   const bubble = document.getElementById(currentExportMsgId);
   if (!bubble) return;
   
-  // 获取气泡内容（去掉导出按钮）
-  const content = bubble.innerText.replace(/导出报告/, '').trim();
+  // 获取气泡内容区域（去掉导出按钮）
+  const contentElement = bubble.querySelector('.bubble-content');
+  if (!contentElement) return;
+  
+  // 获取 HTML 内容用于智能解析
+  const htmlContent = contentElement.innerHTML;
+  // 获取纯文本内容
+  const textContent = contentElement.innerText.trim();
   
   const token = localStorage.getItem('session_token');
   if (!token) {
@@ -461,7 +467,8 @@ async function exportBubble(format) {
       body: JSON.stringify({
         format: format,
         session_token: token,
-        content: content  // 发送气泡内容
+        content: textContent,
+        html_content: htmlContent
       })
     });
     
@@ -478,7 +485,15 @@ async function exportBubble(format) {
       byteNumbers[i] = byteCharacters.charCodeAt(i);
     }
     const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray]);
+    
+    // 根据格式设置正确的 MIME 类型
+    const mimeTypes = {
+      'md': 'text/markdown',
+      'pdf': 'application/pdf',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    };
+    const blob = new Blob([byteArray], { type: mimeTypes[format] || 'application/octet-stream' });
     
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
