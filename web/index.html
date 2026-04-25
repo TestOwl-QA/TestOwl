@@ -392,27 +392,48 @@ async function checkHealth() {
     
     const data = await res.json();
     
-    let html = '<div style="line-height:2">';
-    html += '<p><strong>服务状态：</strong>' + (data.status === 'healthy' ? '✅ 正常' : '❌ 异常') + '</p>';
+    // 计算通过/失败数量
+    let passCount = 0;
+    let failCount = 0;
     
-    if (data.checks) {
-      html += '<hr style="border:none;border-top:1px solid #e8e4df;margin:15px 0">';
-      html += '<p><strong>详细检查：</strong></p>';
-      for (const [key, value] of Object.entries(data.checks)) {
-        const icon = value.status === 'ok' ? '✅' : (value.status === 'warning' ? '⚠️' : '❌');
-        html += '<p style="padding-left:15px">' + icon + ' <strong>' + key + ':</strong> ' + value.message + '</p>';
-      }
+    if (data.checks && Array.isArray(data.checks)) {
+      data.checks.forEach(check => {
+        if (check.status === 'pass' || check.status === 'ok') {
+          passCount++;
+        } else {
+          failCount++;
+        }
+      });
     }
     
-    html += '<hr style="border:none;border-top:1px solid #e8e4df;margin:15px 0">';
-    html += '<p style="color:#8b7355;font-size:12px">检测时间: ' + new Date().toLocaleString() + '</p>';
+    const isHealthy = failCount === 0;
+    
+    let html = '<div style="line-height:2">';
+    html += '<p><strong>服务状态：</strong>' + (isHealthy ? '<span style="color:#5a8">✓ 正常</span>' : '<span style="color:#c45c4b">✗ 异常</span>') + '</p>';
+    html += '<p style="font-size:13px;color:#8b7355">通过: ' + passCount + ' 项，失败: ' + failCount + ' 项</p>';
+    
+    if (data.checks && Array.isArray(data.checks)) {
+      html += '<hr style="border:none;border-top:1px solid #e8e4df;margin:15px 0">';
+      html += '<p><strong>详细检查：</strong></p>';
+      data.checks.forEach((check, index) => {
+        const isPass = check.status === 'pass' || check.status === 'ok';
+        const icon = isPass ? '<span style="color:#5a8">✓</span>' : '<span style="color:#c45c4b">✗</span>';
+        html += '<p style="padding-left:15px">' + icon + ' <strong>' + check.name + ':</strong> ' + check.message + '</p>';
+      });
+    }
+    
+    if (data.timestamp) {
+      html += '<hr style="border:none;border-top:1px solid #e8e4df;margin:15px 0">';
+      html += '<p style="color:#8b7355;font-size:12px">检测时间: ' + new Date(data.timestamp).toLocaleString() + '</p>';
+    }
+    
     html += '</div>';
     
     healthEl.innerHTML = html;
     statusEl.textContent = '✓ 检测完成';
     
   } catch (e) {
-    healthEl.innerHTML = '<p style="color:#c45c4b">❌ 检测失败: ' + e.message + '</p>';
+    healthEl.innerHTML = '<p style="color:#c45c4b">✗ 检测失败: ' + e.message + '</p>';
     statusEl.textContent = '检测失败';
   } finally {
     btn.disabled = false;
