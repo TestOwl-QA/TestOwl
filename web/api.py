@@ -315,11 +315,13 @@ async def health():
     try:
         with open('/root/testowl/web/index.html', 'r') as f:
             html = f.read()
-        # 检查前端导出按钮传的参数
-        frontend_formats = re.findall(r"exportChat\('(\w+)'\)", html)
+        # 检查前端导出按钮传的参数（支持 exportChat 和 exportBubble）
+        frontend_formats = re.findall(r"export(Chat|Bubble)\('(\w+)'\)", html)
+        # 提取格式参数
+        formats = [match[1] for match in frontend_formats]
         expected = ['md', 'pdf', 'xlsx', 'docx']
-        missing = [f for f in expected if f not in frontend_formats]
-        wrong = [f for f in frontend_formats if f not in expected]
+        missing = [f for f in expected if f not in formats]
+        wrong = [f for f in formats if f not in expected]
         
         if missing or wrong:
             msg = f"前端参数异常: 缺少{missing}, 错误{wrong}" if (missing or wrong) else "参数一致"
