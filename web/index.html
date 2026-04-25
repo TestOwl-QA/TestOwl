@@ -1,258 +1,363 @@
 <!DOCTYPE html>
 <html>
-<head><link rel="icon" href="/assets/favicon.png" type="image/png">
+<head>
+<link rel="icon" href="/assets/favicon.png" type="image/png">
 <meta charset="UTF-8">
-<title>TestOwl</title>
+<title>TestOwl - 游戏测试助手</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#FAF8F5;display:flex;min-height:100vh}
-.sidebar{width:180px;background:#F5F0E8;padding:20px 16px;border-right:1px solid #E0D8CC;display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0}
-.sidebar h1{font-size:16px;color:#5D4E37;margin-bottom:24px;font-weight:600}
-.nav-item{padding:8px 10px;margin:2px 0;border-radius:4px;cursor:pointer;color:#4A4A4A;font-size:13px;display:flex;align-items:center}
-.nav-item:hover{background:#EBE4D8}
-.nav-item.active{background:#E8E0D0;color:#5D4E37}
-.nav-item svg{width:14px;height:14px;margin-right:8px;stroke:currentColor;fill:none;stroke-width:1.5}
-.main{flex:1;margin-left:180px;display:flex;flex-direction:column;min-height:100vh}
-.chat-view{flex:1;display:flex;flex-direction:column;max-width:800px;margin:0 auto;width:100%;height:calc(100vh - 0px)}
-.chat-messages{flex:1;overflow-y:auto;padding:20px 20px 150px 20px}
-.msg{margin:16px 0;display:flex}
-.msg.user{justify-content:flex-end}
-.msg.user .bubble{background:#A89070;color:white;border-radius:16px 16px 4px 16px}
-.msg.assistant{justify-content:flex-start}
-.msg.assistant .bubble{background:white;color:#4A4A4A;border-radius:16px 16px 16px 4px;border:1px solid #E8E0D0;position:relative}
-.bubble{padding:12px 28px 12px 16px;max-width:70%;font-size:14px;line-height:1.6}
-.bubble h3{margin:0 0 10px 0;font-size:16px;color:#5D4E37}
-.bubble h4{margin:10px 0 6px 0;font-size:14px;color:#5D4E37}
-.bubble p{margin:6px 0}
-.bubble ul{margin:6px 0;padding-left:20px}
-.bubble li{margin:4px 0;line-height:1.5}
-.bubble ol{margin:6px 0;padding-left:20px}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f5f5;display:flex;min-height:100vh}
 
-.export-icon{position:absolute;top:6px;right:6px;cursor:pointer;opacity:0.3;font-size:14px}
-.export-icon:hover{opacity:0.7}
-.chat-input-area{position:fixed;bottom:0;left:180px;right:0;padding:12px 20px;background:#FAF8F5;border-top:1px solid #E8E0D0;z-index:100}
-.input-box{position:relative;max-width:800px;margin:0 auto}
-.input-box textarea{width:100%;padding:14px 80px 14px 40px;border:1px solid #D8D0C0;border-radius:12px;font-size:14px;resize:none;height:100px;min-height:100px;max-height:300px;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
-.input-box textarea:focus{outline:none;border-color:#A89070}
-.input-box button{position:absolute;right:10px;bottom:10px;padding:8px 16px;background:#B8A090;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px}
-.input-box button:hover{background:#A89070}
-.upload-btn{position:absolute;left:10px;bottom:12px;color:#B8A090;cursor:pointer;z-index:10}
-.upload-btn:hover{color:#A89070}
-.tool-panel{display:none;padding:20px;max-width:800px;margin:0 auto;width:100%}
+/* 侧边栏 */
+.sidebar{width:200px;background:#fff;padding:20px;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0}
+.sidebar h1{font-size:18px;color:#333;margin-bottom:30px;font-weight:600;display:flex;align-items:center;gap:8px}
+.sidebar h1::before{content:"🦉";font-size:20px}
+.nav-item{padding:12px;margin:4px 0;border-radius:8px;cursor:pointer;color:#666;font-size:14px;display:flex;align-items:center;transition:all 0.2s}
+.nav-item:hover{background:#f0f0f0;color:#333}
+.nav-item.active{background:#e3f2fd;color:#1976d2}
+.nav-item svg{width:18px;height:18px;margin-right:10px}
+
+/* 主区域 */
+.main{flex:1;margin-left:200px;display:flex;flex-direction:column;height:100vh}
+
+/* 聊天区域 */
+.chat-view{flex:1;display:flex;flex-direction:column;max-width:900px;margin:0 auto;width:100%;height:100vh;position:relative}
+
+/* 欢迎消息 */
+.welcome{text-align:center;padding:60px 20px;color:#666}
+.welcome h2{font-size:24px;color:#333;margin-bottom:16px}
+.welcome p{font-size:14px;line-height:1.8;max-width:500px;margin:0 auto}
+.welcome .quick-actions{display:flex;gap:10px;justify-content:center;margin-top:30px;flex-wrap:wrap}
+.welcome .quick-btn{padding:10px 20px;background:#fff;border:1px solid #e0e0e0;border-radius:20px;cursor:pointer;font-size:13px;color:#666;transition:all 0.2s}
+.welcome .quick-btn:hover{background:#e3f2fd;border-color:#1976d2;color:#1976d2}
+
+/* 消息列表 */
+.chat-messages{flex:1;overflow-y:auto;padding:20px}
+.msg{margin:20px 0;display:flex;animation:fadeIn 0.3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+.msg.user{justify-content:flex-end}
+.msg.user .bubble{background:#1976d2;color:white;border-radius:20px 20px 4px 20px}
+
+.msg.assistant{justify-content:flex-start}
+.msg.assistant .bubble{background:#fff;color:#333;border-radius:20px 20px 20px 4px;border:1px solid #e0e0e0}
+
+.bubble{padding:14px 18px;max-width:75%;font-size:14px;line-height:1.7;word-wrap:break-word}
+
+/* AI头像 */
+.ai-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);display:flex;align-items:center;justify-content:center;color:white;font-size:16px;margin-right:10px;flex-shrink:0}
+
+/* 思考中动画 */
+.thinking{display:flex;align-items:center;gap:4px;padding:12px 18px;background:#f5f5f5;border-radius:20px;color:#666;font-size:13px}
+.thinking-dot{width:8px;height:8px;background:#999;border-radius:50%;animation:thinking 1.4s infinite}
+.thinking-dot:nth-child(2){animation-delay:0.2s}
+.thinking-dot:nth-child(3){animation-delay:0.4s}
+@keyframes thinking{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-10px)}}
+
+/* 输入区域 */
+.chat-input-area{position:fixed;bottom:0;left:200px;right:0;padding:20px;background:#f5f5f5}
+.input-box{position:relative;max-width:900px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e0e0e0;padding:14px 16px;display:flex;align-items:flex-end;gap:10px}
+.input-box:focus-within{border-color:#1976d2;box-shadow:0 2px 8px rgba(25,118,210,0.1)}
+.input-box textarea{flex:1;border:none;outline:none;font-size:14px;resize:none;min-height:24px;max-height:150px;font-family:inherit;line-height:1.5}
+.input-box button{padding:8px 16px;background:#1976d2;color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;transition:all 0.2s}
+.input-box button:hover{background:#1565c0}
+.input-box button:disabled{background:#ccc;cursor:not-allowed}
+.upload-btn{color:#666;cursor:pointer;padding:4px;transition:color 0.2s}
+.upload-btn:hover{color:#1976d2}
+
+/* 设置面板 */
+.tool-panel{display:none;padding:40px;max-width:800px;margin:0 auto}
 .tool-panel.active{display:block}
-h2{color:#4A4A4A;font-size:15px;margin-bottom:16px}
-.panel-box{background:white;border-radius:8px;padding:16px;border:1px solid #E8E0D0;margin-bottom:12px}
-.panel-box label{display:block;color:#5D4E37;font-size:12px;margin-bottom:6px}
-.panel-input{width:100%;height:100px;border:1px solid #D8D0C0;border-radius:4px;padding:8px;font-size:13px;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;resize:vertical}
-input[type="password"]{width:100%;padding:8px;border:1px solid #D8D0C0;border-radius:4px;font-size:13px;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
-.btn{padding:8px 16px;background:#B8A090;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px}
-.btn:hover{background:#A89070}
-.btn-outline{background:white;color:#5D4E37;border:1px solid #D8D0C0}
-.report-menu{display:none;position:fixed;background:white;border:1px solid #E8E0D0;border-radius:6px;padding:12px;box-shadow:0 2px 12px rgba(0,0,0,0.15);z-index:1000}
-.export-btn{display:block;width:100%;margin:4px 0;padding:6px;background:#D4C4B0;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px}
-.export-btn:hover{background:#B8A090}
+.tool-panel h2{font-size:20px;color:#333;margin-bottom:24px}
+.setting-item{background:#fff;padding:20px;border-radius:12px;margin-bottom:16px;border:1px solid #e0e0e0}
+.setting-item label{display:block;color:#333;font-size:14px;margin-bottom:8px;font-weight:500}
+.setting-item input{width:100%;padding:12px;border:1px solid #e0e0e0;border-radius:8px;font-size:14px}
+.setting-item input:focus{outline:none;border-color:#1976d2}
+.btn{padding:12px 24px;background:#1976d2;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;transition:all 0.2s}
+.btn:hover{background:#1565c0}
+
+/* 代码块样式 */
+.bubble pre{background:#f5f5f5;padding:12px;border-radius:8px;overflow-x:auto;font-size:12px;margin:10px 0}
+.bubble code{font-family:'Consolas','Monaco',monospace;background:#f5f5f0;padding:2px 6px;border-radius:4px;font-size:12px}
 </style>
 </head>
 <body>
 <div class="sidebar">
 <h1>TestOwl</h1>
 <div class="nav-item active" onclick="switchView('chat')">
-<svg viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>对话
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>对话
 </div>
 <div class="nav-item" onclick="switchView('apikey')">
-<svg viewBox="0 0 24 24"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>API Key配置
-</div>
-<div class="nav-item" onclick="switchView('settings')" style="margin-top:auto">
-<svg viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>设置
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>API设置
 </div>
 </div>
+
 <div class="main">
-<div id="chatView" class="chat-view" style="display:flex">
+<div id="chatView" class="chat-view">
 <div class="chat-messages" id="chatMessages">
-<div class="msg assistant"><div class="bubble">📄你好，我是 TestOwl，可以帮你分析测试需求、生成测试用例、检查配置表。</div></div>
+<div class="welcome">
+<h2>👋 你好，我是 TestOwl</h2>
+<p>你的游戏测试智能助手。我可以帮你：</p>
+<div class="quick-actions">
+<div class="quick-btn" onclick="setInput('分析这个需求文档')">📄 分析需求</div>
+<div class="quick-btn" onclick="setInput('生成测试用例')">📝 生成用例</div>
+<div class="quick-btn" onclick="setInput('检查配置表')">📊 检查表格</div>
+<div class="quick-btn" onclick="setInput('如何设计性能测试？')">� 测试建议</div>
+</div>
+</div>
 </div>
 <div class="chat-input-area">
 <div class="input-box">
 <div class="upload-btn" onclick="document.getElementById('fileInput').click()">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
 </div>
 <input type="file" id="fileInput" style="display:none" onchange="handleFile(this.files[0])">
-<textarea id="userInput" placeholder="输入消息..."></textarea>
-<button onclick="sendMessage()">发送</button>
+<textarea id="userInput" placeholder="输入消息，按 Enter 发送..." rows="1"></textarea>
+<button id="sendBtn" onclick="sendMessage()">发送</button>
 </div>
 </div>
 </div>
 
 <div id="apikey" class="tool-panel">
-<h2>API Key配置</h2>
-<div class="panel-box">
-<label>API Key</label>
-<input type="password" id="apiKey" placeholder="输入你的API Key">
+<h2>API 设置</h2>
+<div class="setting-item">
+<label>DeepSeek API Key</label>
+<input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxx">
 </div>
-<button class="btn" onclick="saveKey()">保存</button>
-<span id="keyStatus" style="margin-left:10px;color:#5D4E37;font-size:12px"></span>
+<button class="btn" onclick="saveKey()">保存设置</button>
+<span id="keyStatus" style="margin-left:15px;color:#666"></span>
 </div>
-
-<div id="settings" class="tool-panel">
-<h2>设置</h2>
-<div class="panel-box">
-<h3 style="color:#5D4E37;font-size:14px;margin-bottom:8px">Web自检</h3>
-<p style="color:#8B7355;font-size:12px">自动化测试功能（开发中）</p>
-<button class="btn btn-outline" style="margin-top:10px" onclick="runSelfTest()">运行自检
-<div id="selfTestResult" style="display:none;margin-top:15px;padding:15px;background:#f8f8f8;border-radius:4px;font-size:13px"></div>
-<div id="selfTestResult" style="display:none;margin-top:15px;padding:15px;background:#f8f8f8;border-radius:4px;font-size:13px"></div></button>
-</div>
-<div class="panel-box">
-<h3 style="color:#5D4E37;font-size:14px;margin-bottom:8px">开发者模式</h3>
-<p style="color:#8B7355;font-size:12px">代码编辑功能（开发中）</p>
-<button class="btn btn-outline" style="margin-top:10px" onclick="alert('功能开发中，敬请期待')">进入开发者模式</button>
-</div>
-</div>
-</div>
-
-<div class="report-menu" id="reportMenu">
-<button class="export-btn" onclick="exportChat('md')">Markdown</button>
-<button class="export-btn" onclick="exportChat('pdf')">PDF</button>
-<button class="export-btn" onclick="exportChat('xlsx')">Excel</button>
-<button class="export-btn" onclick="exportChat('docx')">Word</button>
 </div>
 
 <script>
-const API='http://121.41.36.197:8081';
-let history=[],currentExportContent='';
+const API = window.location.hostname === 'localhost' ? 'http://localhost:8081' : 'http://121.41.36.197:8081';
+let isTyping = false;
 
-function switchView(v){
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+// 切换视图
+function switchView(view) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   event.currentTarget.classList.add('active');
-  document.getElementById('chatView').style.display=v==='chat'?'flex':'none';
-  document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('active'));
-  if(v!=='chat')document.getElementById(v).classList.add('active');
+  document.getElementById('chatView').style.display = view === 'chat' ? 'flex' : 'none';
+  document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active'));
+  if (view !== 'chat') document.getElementById(view).classList.add('active');
 }
 
-async function saveKey(){
-  const k=document.getElementById('apiKey').value.trim();
-  if(!k)return alert('请输入API Key');
-  const r=await fetch(API+'/auth/save_key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:k})});
-  const d=await r.json();
-  if(d.success){localStorage.setItem('session_token',d.session_token);document.getElementById('apiKey').value='';document.getElementById('keyStatus').innerHTML='✓ 已保存';}
-  else alert('保存失败: '+d.error);
+// 设置输入框内容
+function setInput(text) {
+  document.getElementById('userInput').value = text;
+  document.getElementById('userInput').focus();
 }
 
-async function sendMessage(){
-  const t=localStorage.getItem('session_token');
-  if(!t){alert('请先保存API Key');return;}
-  const input=document.getElementById('userInput');
-  const m=input.value.trim();
-  if(!m)return;
-  addMsg('user',m);
-  input.value='';
-  try{
-    const r=await fetch(API+'/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({message:m,history:history,session_token:t})});
-    const d=await r.json();
-    if(d.error)throw new Error(d.error);
-    history.push({role:'user',content:m},{role:'assistant',content:d.response});
-    addMsg('assistant',d.response);
-  }catch(e){addMsg('assistant','错误: '+e.message);}
-}
-
-function addMsg(role,content){
-  const div=document.createElement('div');
-  div.className='msg '+role;
-div.innerHTML='<div class="bubble">'+content+(role==='assistant'?'<span class="export-icon" onclick="showExportMenu(event,this.parentElement)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></span>':'')+'</div>';
-  document.getElementById('chatMessages').appendChild(div);
-// 滚动到新消息，考虑输入框高度
-            var container = document.getElementById('chatMessages');
-            var inputHeight = 120; // 输入框高度
-            container.scrollTop = container.scrollHeight;
-            setTimeout(function() {
-                div.scrollIntoView({behavior:'smooth', block:'start'});
-                // 额外向下滚动一点，确保不被输入框遮挡
-                container.scrollTop += inputHeight;
-            }, 100);
-}
-
-function showExportMenu(e,el){
-  e.preventDefault();e.stopPropagation();
-  currentExportContent=el.innerText;
-  const m=document.getElementById('reportMenu');
-  m.style.display='block';
-  m.style.left=e.clientX+'px';
-  m.style.top=e.clientY+'px';
-  document.onclick=()=>{m.style.display='none';document.onclick=null;};
-}
-
-async function exportChat(fmt){
- const t=localStorage.getItem('session_token');
- if(!t){alert('请先保存API Key');return;}
- const r=await fetch(API+'/export_single',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({content:currentExportContent,format:fmt,session_token:t})});
- const d=await r.json();
- if(d.file){
- const bin=atob(d.file);
- const arr=new Uint8Array(bin.length);
- for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
- const blob=new Blob([arr]);
- const a=document.createElement('a');
- a.href=URL.createObjectURL(blob);
- a.download=d.filename;
- a.click();
- }else if(d.error){
- alert('导出失败:'+d.error);
- }
-}
-
-async function handleFile(f){
-  if(!f)return;
-  const t=localStorage.getItem('session_token');
-  if(!t){alert('请先保存API Key');return;}
-  const fd=new FormData();
-  fd.append('file',f);
-  const r=await fetch(API+'/upload',{method:'POST',headers:{'Authorization':'Bearer '+t},body:fd});
-  const d=await r.json();
-  if(d.file_id){
-    addMsg('user','上传了文件: '+f.name);
-    addMsg('assistant','文件已上传，正在分析...');
+// 保存API Key
+async function saveKey() {
+  const key = document.getElementById('apiKey').value.trim();
+  if (!key) return alert('请输入 API Key');
+  try {
+    const res = await fetch(API + '/auth/save_key', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({api_key: key})
+    });
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('session_token', data.session_token);
+      document.getElementById('keyStatus').textContent = '✓ 保存成功';
+      document.getElementById('apiKey').value = '';
+    } else {
+      alert('保存失败: ' + data.error);
+    }
+  } catch (e) {
+    alert('网络错误: ' + e.message);
   }
 }
 
-document.getElementById('userInput').addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}
+// 添加消息
+function addMessage(role, content, isTyping = false) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  
+  if (role === 'assistant') {
+    div.innerHTML = '<div class="ai-avatar">🦉</div><div class="bubble" id="msg-' + Date.now() + '"></div>';
+  } else {
+    div.innerHTML = '<div class="bubble">' + escapeHtml(content) + '</div>';
+  }
+  
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  
+  if (isTyping && role === 'assistant') {
+    return div.querySelector('.bubble');
+  }
+  return null;
+}
+
+// 打字机效果
+async function typeWriter(element, text, speed = 30) {
+  isTyping = true;
+  let i = 0;
+  element.innerHTML = '';
+  
+  return new Promise(resolve => {
+    function type() {
+      if (i < text.length) {
+        element.innerHTML += escapeHtml(text.charAt(i));
+        i++;
+        setTimeout(type, speed);
+      } else {
+        isTyping = false;
+        element.innerHTML = formatText(text);
+        resolve();
+      }
+    }
+    type();
+  });
+}
+
+// 显示思考中
+function showThinking() {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'msg assistant';
+  div.id = 'thinking-msg';
+  div.innerHTML = '<div class="ai-avatar">🦉</div><div class="thinking"><div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div>正在思考...</div>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+// 移除思考中
+function hideThinking() {
+  const thinking = document.getElementById('thinking-msg');
+  if (thinking) thinking.remove();
+}
+
+// 发送消息
+async function sendMessage() {
+  if (isTyping) return;
+  
+  const token = localStorage.getItem('session_token');
+  if (!token) {
+    alert('请先设置 API Key');
+    switchView('apikey');
+    return;
+  }
+  
+  const input = document.getElementById('userInput');
+  const message = input.value.trim();
+  if (!message) return;
+  
+  // 隐藏欢迎消息
+  const welcome = document.querySelector('.welcome');
+  if (welcome) welcome.remove();
+  
+  // 添加用户消息
+  addMessage('user', message);
+  input.value = '';
+  input.style.height = 'auto';
+  
+  // 禁用发送按钮
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  btn.textContent = '发送中...';
+  
+  // 显示思考中
+  showThinking();
+  
+  try {
+    const res = await fetch(API + '/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({
+        message: message,
+        session_token: token
+      })
+    });
+    
+    hideThinking();
+    const data = await res.json();
+    
+    if (data.error) throw new Error(data.error);
+    
+    // 添加AI消息并打字机效果
+    const bubble = addMessage('assistant', '', true);
+    await typeWriter(bubble, data.response);
+    
+  } catch (e) {
+    hideThinking();
+    addMessage('assistant', '抱歉，出错了: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '发送';
+  }
+}
+
+// 处理文件上传
+async function handleFile(file) {
+  if (!file) return;
+  const token = localStorage.getItem('session_token');
+  if (!token) {
+    alert('请先设置 API Key');
+    return;
+  }
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  try {
+    addMessage('user', '📎 上传文件: ' + file.name);
+    showThinking();
+    
+    const res = await fetch(API + '/upload', {
+      method: 'POST',
+      headers: {'Authorization': 'Bearer ' + token},
+      body: formData
+    });
+    
+    hideThinking();
+    const data = await res.json();
+    
+    if (data.file_id) {
+      const bubble = addMessage('assistant', '', true);
+      await typeWriter(bubble, '文件已接收，正在分析内容...\n\n你可以问我：\n- "分析这个需求"\n- "生成测试用例"\n- "检查配置表"');
+    }
+  } catch (e) {
+    hideThinking();
+    addMessage('assistant', '上传失败: ' + e.message);
+  }
+}
+
+// 转义HTML
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// 格式化文本（简单Markdown）
+function formatText(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`(.+?)`/g, '<code>$1</code>')
+    .replace(/\n/g, '<br>');
+}
+
+// 自动调整输入框高度
+document.getElementById('userInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 150) + 'px';
 });
 
-function runSelfTest(){
-var resultEl = document.getElementById('selfTestResult');
-resultEl.style.display = 'block';
-resultEl.innerHTML = '<div style="color:#666">⏳ 自检中，请稍候...</div>';
-fetch(API+'/health')
-.then(r => r.json())
-.then(d => {
-var html = '';
-if(d.status === 'ok'){
-html += '<div style="color:#5D8A4E;font-weight:600;font-size:15px;margin-bottom:10px">✓ 自检通过</div>';
-} else {
-html += '<div style="color:#C45C4E;font-weight:600;font-size:15px;margin-bottom:10px">✗ 自检发现问题</div>';
-}
-html += '<div style="font-size:12px;color:#666;margin-bottom:8px">时间: ' + (d.timestamp || '-') + '</div>';
-html += '<div style="border-top:1px solid #ddd;padding-top:10px">';
-if(d.checks && d.checks.length > 0){
-d.checks.forEach(function(check){
-var icon = check.status === 'pass' ? '✓' : (check.status === 'warn' ? '⚠' : '✗');
-var color = check.status === 'pass' ? '#5D8A4E' : (check.status === 'warn' ? '#B8860B' : '#C45C4E');
-html += '<div style="margin:8px 0">';
-html += '<span style="color:' + color + '">' + icon + '</span> ';
-html += '<strong>' + check.name + '</strong>: ' + check.message;
-if(check.traceback){
-html += '<pre style="margin:5px 0 0 20px;padding:8px;background:#fff;font-size:11px;color:#C45C4E;border:1px solid #eee;overflow-x:auto">' + check.traceback + '</pre>';
-}
-html += '</div>';
+// 回车发送
+document.getElementById('userInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
 });
-}
-html += '</div>';
-resultEl.innerHTML = html;
-})
-.catch(e => {
-resultEl.innerHTML = '<div style="color:#C45C4E;font-weight:600">✗ 连接失败</div><div style="font-size:12px;color:#666;margin-top:5px">' + e.message + '</div>';
-});
-}
 </script>
 </body>
 </html>
