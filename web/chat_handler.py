@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 from pathlib import Path
 
 # 动态添加项目根目录到路径
@@ -118,7 +119,9 @@ async def handle_chat(req, get_api_key, get_config_with_key):
                     output += f"<h4>{c.get('id','')} {c.get('title','')} [{c.get('pri','P2')}]</h4>"
                     output += "<ol>"
                     for s in c.get('steps', []):
-                        output += f"<li>{s}</li>"
+                        # 移除步骤中已有的序号前缀（如 "1. "、"2. "）
+                        clean_step = re.sub(r'^\d+[\.、]\s*', '', s)
+                        output += f"<li>{clean_step}</li>"
                     output += f"</ol><p><b>预期:</b>{c.get('expected','')}</p>"
                 return {"success": True, "response": output}
             except:

@@ -63,7 +63,8 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 .bubble-export-menu-item:hover{background:#f5f0e8}
 
 /* AI头像 */
-.ai-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#c4a77d 0%,#a08060 100%);display:flex;align-items:center;justify-content:center;color:white;font-size:16px;margin-right:10px;flex-shrink:0}
+.ai-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#c4a77d 0%,#a08060 100%);display:flex;align-items:center;justify-content:center;color:white;margin-right:10px;flex-shrink:0;box-shadow:0 2px 8px rgba(196,167,125,0.3)}
+.ai-avatar svg{width:22px;height:22px;stroke-width:2.5}
 
 /* 思考中动画 */
 .thinking{display:flex;align-items:center;gap:4px;padding:12px 18px;background:#f5f0e8;border-radius:20px;color:#6b5b4f;font-size:13px}
@@ -281,7 +282,7 @@ function addMessage(role, content, isTyping = false) {
   const msgId = 'msg-' + Date.now();
   
   if (role === 'assistant') {
-    div.innerHTML = '<div class="ai-avatar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z"/><circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/><path d="M12 17c1.5 0 2.5-.83 3-1.5"/></svg></div><div class="bubble" id="' + msgId + '"><div class="bubble-export" onclick="showExportMenu(event, \'' + msgId + '\')" title="导出报告"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></div><div class="bubble-content"></div></div>';
+    div.innerHTML = '<div class="ai-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 2 5 5 5 9c0 2 1 4 2 5l-2 5 5-2c1 1 2 1 2 1 4 0 7-3 7-7s-3-7-7-7z"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="15" cy="9" r="1.5" fill="currentColor"/><path d="M12 13c-1.5 0-2.5.5-3 1.5"/><path d="M12 13c1.5 0 2.5.5 3 1.5"/></svg></div><div class="bubble" id="' + msgId + '"><div class="bubble-export" onclick="showExportMenu(event, \'' + msgId + '\')" title="导出报告"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></div><div class="bubble-content"></div></div>';
   } else {
     div.innerHTML = '<div class="bubble">' + escapeHtml(content) + '</div>';
   }
@@ -342,7 +343,7 @@ function showThinking() {
   const div = document.createElement('div');
   div.className = 'msg assistant';
   div.id = 'thinking-msg';
-  div.innerHTML = '<div class="ai-avatar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z"/><circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/><path d="M12 17c1.5 0 2.5-.83 3-1.5"/></svg></div><div class="thinking"><div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div>正在思考...</div>';
+  div.innerHTML = '<div class="ai-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 2 5 5 5 9c0 2 1 4 2 5l-2 5 5-2c1 1 2 1 2 1 4 0 7-3 7-7s-3-7-7-7z"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="15" cy="9" r="1.5" fill="currentColor"/><path d="M12 13c-1.5 0-2.5.5-3 1.5"/><path d="M12 13c1.5 0 2.5.5 3 1.5"/></svg></div><div class="thinking"><div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div>正在思考...</div>';
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
 }
@@ -530,6 +531,16 @@ async function exportBubble(format) {
   // 获取纯文本内容
   const textContent = contentElement.innerText.trim();
   
+  // 检测气泡类型
+  let bubbleType = 'analysis'; // 默认需求分析
+  if (textContent.includes('测试用例') || textContent.includes('TC')) {
+    bubbleType = 'testcase';
+  } else if (textContent.includes('Bug') || textContent.includes('缺陷')) {
+    bubbleType = 'bug';
+  } else if (textContent.includes('风险') || textContent.includes('测试点')) {
+    bubbleType = 'analysis';
+  }
+  
   const token = localStorage.getItem('session_token');
   if (!token) {
     alert('请先设置 API Key');
@@ -547,7 +558,8 @@ async function exportBubble(format) {
         format: format,
         session_token: token,
         content: textContent,
-        html_content: htmlContent
+        html_content: htmlContent,
+        bubble_type: bubbleType
       })
     });
     

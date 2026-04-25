@@ -435,7 +435,6 @@ def parse_analysis_content(content: str) -> dict:
             # 解析测试点 [P0] 标题 - 描述
             if line.startswith('•') or line.startswith('-') or line.startswith('*'):
                 # 提取优先级和内容
-                import re
                 priority_match = re.search(r'\[([Pp]\d+)\]', line)
                 priority = priority_match.group(1).upper() if priority_match else "P2"
                 
@@ -462,23 +461,71 @@ def parse_analysis_content(content: str) -> dict:
     return result
 
 
-@app.post("/export_single")
-async def export_single(req: dict):
-    """导出单条消息为报告格式"""
-    key = get_api_key(req.get("session_token", ""))
-    if not key:
-        return {"success": False, "error": "未配置API Key"}
+def parse_testcase_content(content: str) -> dict:
+    """解析测试用例内容，提取结构化数据"""
+    result = {
+        "title": "测试用例报告",
+        "cases": []
+    }
     
-    content = req.get("content", "")
-    fmt = req.get("format", "md")
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    lines = content.split('\n')
+    current_case = None
     
-    # 解析内容
-    parsed = parse_analysis_content(content)
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # 检测标题
+        if line.startswith('测试用例'):
+            result["title"] = line
+        # 检测用例标题行 (TC001 xxx [P0])
+        elif re.match(r'^TC\d+', line):
+            # 保存上一个用例
+            if current_case:
+                result["cases"].append(current_case)
+            
+            # 解析新用例
+            match = re.match(r'(TC\d+)\s+(.+?)\s*\[([Pp]\d+)\]', line)
+            if match:
+                case_id = match.group(1)
+                title = match.group(2)
+                priority = match.group(3).upper()
+            else:
+                case_id = re.match(r'(TC\d+)', line).group(1)
+                title = line.replace(case_id, '').strip()
+                priority = "P2"
+            
+            current_case = {
+                "id": case_id,
+                "title": title,
+                "priority": priority,
+                "steps": [],
+                "expected": ""
+            }
+        # 检测步骤 (1. xxx 或 li 内容)
+        elif current_case and (re.match(r'^\d+[\.、]\s*', line) or line.startswith('预期:') or line.startswith('预期：')):
+            if line.startswith('预期:') or line.startswith('预期：'):
+                current_case["expected"] = line.replace('预期:', '').replace('预期：', '').strip()
+            else:
+                # 移除序号前缀
+                step = re.sub(r'^\d+[\.、]\s*', '', line)
+                current_case["steps"].append(step)
+        # 检测预期结果行
+        elif current_case and ('预期' in line or 'expected' in line.lower()):
+            current_case["expected"] = re.sub(r'.*预期[：:]\s*', '', line, flags=re.IGNORECASE)
     
+    # 保存最后一个用例
+    if current_case:
+        result["cases"].append(current_case)
+    
+    return result
+
+
+def export_analysis_report(parsed: dict, fmt: str, timestamp: str) -> dict:
+    """导出需求分析报告"""
     try:
         if fmt == "md":
-            # 生成 Markdown 报告
             md_lines = [f"# {parsed['title']}", ""]
             
             if parsed['summary']:
@@ -499,7 +546,7 @@ async def export_single(req: dict):
                 md_lines.append("")
             
             file_bytes = '\n'.join(md_lines).encode('utf-8')
-            filename = f"test_report_{timestamp}.md"
+            filename = f"analysis_report_{timestamp}.md"
         
         elif fmt == "pdf":
             from reportlab.lib.pagesizes import A4
@@ -510,7 +557,6 @@ async def export_single(req: dict):
             from reportlab.pdfbase import pdfmetrics
             from reportlab.pdfbase.ttfonts import TTFont
             
-            # 注册中文字体
             font_name = 'Helvetica'
             font_paths = [
                 '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
@@ -539,17 +585,14 @@ async def export_single(req: dict):
             
             story = []
             
-            # 标题
             story.append(Paragraph(parsed['title'], styles['ChineseTitle']))
             story.append(Spacer(1, 0.2*inch))
             
-            # 概述
             if parsed['summary']:
                 story.append(Paragraph("概述", styles['ChineseHeading']))
                 story.append(Paragraph(parsed['summary'], styles['ChineseBody']))
                 story.append(Spacer(1, 0.1*inch))
             
-            # 测试点表格
             if parsed['test_points']:
                 story.append(Paragraph("测试点", styles['ChineseHeading']))
                 story.append(Spacer(1, 0.1*inch))
@@ -572,7 +615,6 @@ async def export_single(req: dict):
                 story.append(table)
                 story.append(Spacer(1, 0.2*inch))
             
-            # 风险
             if parsed['risks']:
                 story.append(Paragraph("风险", styles['ChineseHeading']))
                 for risk in parsed['risks']:
@@ -580,7 +622,7 @@ async def export_single(req: dict):
             
             doc.build(story)
             file_bytes = buffer.getvalue()
-            filename = f"test_report_{timestamp}.pdf"
+            filename = f"analysis_report_{timestamp}.pdf"
         
         elif fmt == "xlsx":
             from openpyxl import Workbook
@@ -588,16 +630,13 @@ async def export_single(req: dict):
             
             wb = Workbook()
             
-            # 测试点 Sheet
             if parsed['test_points']:
                 ws = wb.active
                 ws.title = "测试点"
                 
-                # 标题行
                 headers = ['优先级', '测试项', '描述']
                 ws.append(headers)
                 
-                # 样式
                 header_fill = PatternFill(start_color='C4A77D', end_color='C4A77D', fill_type='solid')
                 header_font = Font(bold=True, color='FFFFFF')
                 for cell in ws[1]:
@@ -605,16 +644,13 @@ async def export_single(req: dict):
                     cell.font = header_font
                     cell.alignment = Alignment(horizontal='center', vertical='center')
                 
-                # 数据行
                 for tp in parsed['test_points']:
                     ws.append([tp['priority'], tp['title'], tp['description']])
                 
-                # 调整列宽
                 ws.column_dimensions['A'].width = 10
                 ws.column_dimensions['B'].width = 30
                 ws.column_dimensions['C'].width = 50
             
-            # 风险 Sheet
             if parsed['risks']:
                 ws_risk = wb.create_sheet("风险")
                 ws_risk.append(['序号', '风险描述'])
@@ -634,7 +670,7 @@ async def export_single(req: dict):
             buffer = BytesIO()
             wb.save(buffer)
             file_bytes = buffer.getvalue()
-            filename = f"test_report_{timestamp}.xlsx"
+            filename = f"analysis_report_{timestamp}.xlsx"
         
         elif fmt == "docx":
             from docx import Document
@@ -643,16 +679,13 @@ async def export_single(req: dict):
             
             doc = Document()
             
-            # 标题
             title = doc.add_heading(parsed['title'], 0)
             title.alignment = WD_ALIGN_PARAGRAPH.CENTER
             
-            # 概述
             if parsed['summary']:
                 doc.add_heading('概述', level=1)
                 doc.add_paragraph(parsed['summary'])
             
-            # 测试点
             if parsed['test_points']:
                 doc.add_heading('测试点', level=1)
                 for tp in parsed['test_points']:
@@ -662,7 +695,6 @@ async def export_single(req: dict):
                     if tp['description']:
                         doc.add_paragraph(tp['description'], style='List Bullet')
             
-            # 风险
             if parsed['risks']:
                 doc.add_heading('风险', level=1)
                 for risk in parsed['risks']:
@@ -671,7 +703,7 @@ async def export_single(req: dict):
             buffer = BytesIO()
             doc.save(buffer)
             file_bytes = buffer.getvalue()
-            filename = f"test_report_{timestamp}.docx"
+            filename = f"analysis_report_{timestamp}.docx"
         
         else:
             return {"success": False, "error": f"不支持的格式: {fmt}"}
@@ -685,6 +717,178 @@ async def export_single(req: dict):
     except Exception as e:
         import traceback
         return {"success": False, "error": f"导出失败: {str(e)}", "traceback": traceback.format_exc()}
+
+
+def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
+    """导出测试用例报告"""
+    try:
+        if fmt == "md":
+            md_lines = [f"# {parsed['title']}", ""]
+            
+            for case in parsed['cases']:
+                md_lines.append(f"## {case['id']} {case['title']} [{case['priority']}]")
+                md_lines.append("")
+                md_lines.append("**测试步骤：**")
+                for i, step in enumerate(case['steps'], 1):
+                    md_lines.append(f"{i}. {step}")
+                md_lines.append("")
+                md_lines.append(f"**预期结果：**{case['expected']}")
+                md_lines.append("")
+            
+            file_bytes = '\n'.join(md_lines).encode('utf-8')
+            filename = f"testcase_report_{timestamp}.md"
+        
+        elif fmt == "pdf":
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+            from reportlab.lib import colors
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+            
+            font_name = 'Helvetica'
+            font_paths = [
+                '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+                '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+                '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            ]
+            for font_path in font_paths:
+                try:
+                    if os.path.exists(font_path):
+                        pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
+                        font_name = 'ChineseFont'
+                        break
+                except:
+                    continue
+            
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4,
+                                  rightMargin=72, leftMargin=72,
+                                  topMargin=72, bottomMargin=18)
+            
+            styles = getSampleStyleSheet()
+            styles.add(ParagraphStyle(name='ChineseTitle', fontName=font_name, fontSize=18, spaceAfter=20))
+            styles.add(ParagraphStyle(name='ChineseHeading', fontName=font_name, fontSize=14, spaceAfter=12, spaceBefore=12))
+            styles.add(ParagraphStyle(name='ChineseSubHeading', fontName=font_name, fontSize=12, spaceAfter=8, spaceBefore=8, textColor=colors.HexColor('#5c4b37')))
+            styles.add(ParagraphStyle(name='ChineseBody', fontName=font_name, fontSize=10, spaceAfter=6))
+            
+            story = []
+            
+            story.append(Paragraph(parsed['title'], styles['ChineseTitle']))
+            story.append(Spacer(1, 0.2*inch))
+            
+            for case in parsed['cases']:
+                story.append(Paragraph(f"{case['id']} {case['title']} [{case['priority']}]", styles['ChineseHeading']))
+                
+                story.append(Paragraph("测试步骤：", styles['ChineseSubHeading']))
+                for i, step in enumerate(case['steps'], 1):
+                    story.append(Paragraph(f"{i}. {step}", styles['ChineseBody']))
+                
+                story.append(Paragraph("预期结果：", styles['ChineseSubHeading']))
+                story.append(Paragraph(case['expected'], styles['ChineseBody']))
+                story.append(Spacer(1, 0.15*inch))
+            
+            doc.build(story)
+            file_bytes = buffer.getvalue()
+            filename = f"testcase_report_{timestamp}.pdf"
+        
+        elif fmt == "xlsx":
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "测试用例"
+            
+            headers = ['用例编号', '用例标题', '优先级', '测试步骤', '预期结果']
+            ws.append(headers)
+            
+            header_fill = PatternFill(start_color='C4A77D', end_color='C4A77D', fill_type='solid')
+            header_font = Font(bold=True, color='FFFFFF')
+            for cell in ws[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            
+            for case in parsed['cases']:
+                steps_text = '\n'.join([f"{i}. {step}" for i, step in enumerate(case['steps'], 1)])
+                ws.append([case['id'], case['title'], case['priority'], steps_text, case['expected']])
+            
+            ws.column_dimensions['A'].width = 12
+            ws.column_dimensions['B'].width = 35
+            ws.column_dimensions['C'].width = 10
+            ws.column_dimensions['D'].width = 50
+            ws.column_dimensions['E'].width = 40
+            
+            buffer = BytesIO()
+            wb.save(buffer)
+            file_bytes = buffer.getvalue()
+            filename = f"testcase_report_{timestamp}.xlsx"
+        
+        elif fmt == "docx":
+            from docx import Document
+            from docx.shared import Pt, RGBColor, Inches
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            
+            doc = Document()
+            
+            title = doc.add_heading(parsed['title'], 0)
+            title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            for case in parsed['cases']:
+                p = doc.add_heading(level=2)
+                run = p.add_run(f"{case['id']} {case['title']} [{case['priority']}]")
+                run.bold = True
+                
+                doc.add_paragraph("测试步骤：", style='Heading 3')
+                for i, step in enumerate(case['steps'], 1):
+                    doc.add_paragraph(f"{i}. {step}", style='List Number')
+                
+                doc.add_paragraph("预期结果：", style='Heading 3')
+                doc.add_paragraph(case['expected'])
+                doc.add_paragraph()  # 空行
+            
+            buffer = BytesIO()
+            doc.save(buffer)
+            file_bytes = buffer.getvalue()
+            filename = f"testcase_report_{timestamp}.docx"
+        
+        else:
+            return {"success": False, "error": f"不支持的格式: {fmt}"}
+        
+        return {
+            "success": True,
+            "file": base64.b64encode(file_bytes).decode('utf-8'),
+            "filename": filename
+        }
+    
+    except Exception as e:
+        import traceback
+        return {"success": False, "error": f"导出失败: {str(e)}", "traceback": traceback.format_exc()}
+
+
+@app.post("/export_single")
+async def export_single(req: dict):
+    """导出单条消息为报告格式"""
+    key = get_api_key(req.get("session_token", ""))
+    if not key:
+        return {"success": False, "error": "未配置API Key"}
+    
+    content = req.get("content", "")
+    fmt = req.get("format", "md")
+    bubble_type = req.get("bubble_type", "analysis")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # 根据气泡类型选择解析和导出方式
+    if bubble_type == "testcase":
+        parsed = parse_testcase_content(content)
+        return export_testcase_report(parsed, fmt, timestamp)
+    else:
+        # 默认需求分析
+        parsed = parse_analysis_content(content)
+        return export_analysis_report(parsed, fmt, timestamp)
 
 
 @app.post("/test/run")
