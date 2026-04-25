@@ -797,30 +797,104 @@ def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
         elif fmt == "xlsx":
             from openpyxl import Workbook
             from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
             
             wb = Workbook()
             ws = wb.active
             ws.title = "测试用例"
             
-            headers = ['用例编号', '用例标题', '优先级', '测试步骤', '预期结果']
+            # 标准测试用例表格格式
+            headers = ['用例编号', '所属模块', '用例标题', '前置条件', '测试步骤', '预期结果', '优先级', '执行结果', '备注']
             ws.append(headers)
             
+            # 表头样式
             header_fill = PatternFill(start_color='C4A77D', end_color='C4A77D', fill_type='solid')
-            header_font = Font(bold=True, color='FFFFFF')
+            header_font = Font(bold=True, color='FFFFFF', size=11)
+            header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            thin_border = Border(
+                left=Side(style='thin', color='d4c8b8'),
+                right=Side(style='thin', color='d4c8b8'),
+                top=Side(style='thin', color='d4c8b8'),
+                bottom=Side(style='thin', color='d4c8b8')
+            )
+            
             for cell in ws[1]:
                 cell.fill = header_fill
                 cell.font = header_font
-                cell.alignment = Alignment(horizontal='center', vertical='center')
+                cell.alignment = header_alignment
+                cell.border = thin_border
             
-            for case in parsed['cases']:
+            # 设置表头行高
+            ws.row_dimensions[1].height = 30
+            
+            # 数据行样式
+            data_font = Font(size=10)
+            data_alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+            priority_alignment = Alignment(horizontal='center', vertical='center')
+            
+            # 优先级颜色映射
+            priority_colors = {
+                'P0': 'FF6B6B',  # 红色
+                'P1': 'FFB347',  # 橙色
+                'P2': '87CEEB',  # 蓝色
+            }
+            
+            for idx, case in enumerate(parsed['cases'], start=2):
+                # 格式化测试步骤（带序号换行）
                 steps_text = '\n'.join([f"{i}. {step}" for i, step in enumerate(case['steps'], 1)])
-                ws.append([case['id'], case['title'], case['priority'], steps_text, case['expected']])
+                
+                # 提取模块信息（从标题中尝试提取）
+                module = "登录功能"  # 默认模块，可根据实际情况调整
+                
+                row_data = [
+                    case['id'],           # 用例编号
+                    module,               # 所属模块
+                    case['title'],        # 用例标题
+                    "",                   # 前置条件（可扩展）
+                    steps_text,           # 测试步骤
+                    case['expected'],     # 预期结果
+                    case['priority'],     # 优先级
+                    "",                   # 执行结果（空白待填写）
+                    ""                    # 备注
+                ]
+                ws.append(row_data)
+                
+                # 设置数据行样式
+                for col_idx, cell in enumerate(ws[idx], start=1):
+                    cell.font = data_font
+                    cell.border = thin_border
+                    
+                    # 优先级列居中并着色
+                    if col_idx == 7:  # 优先级列
+                        cell.alignment = priority_alignment
+                        priority = case['priority'].upper()
+                        if priority in priority_colors:
+                            cell.fill = PatternFill(start_color=priority_colors[priority], 
+                                                   end_color=priority_colors[priority], 
+                                                   fill_type='solid')
+                            cell.font = Font(bold=True, color='FFFFFF', size=10)
+                    # 用例编号居中
+                    elif col_idx == 1:
+                        cell.alignment = Alignment(horizontal='center', vertical='center')
+                    else:
+                        cell.alignment = data_alignment
+                
+                # 设置行高（根据内容自动调整）
+                ws.row_dimensions[idx].height = max(40, len(case['steps']) * 15 + 10)
             
-            ws.column_dimensions['A'].width = 12
-            ws.column_dimensions['B'].width = 35
-            ws.column_dimensions['C'].width = 10
-            ws.column_dimensions['D'].width = 50
-            ws.column_dimensions['E'].width = 40
+            # 设置列宽
+            ws.column_dimensions['A'].width = 12  # 用例编号
+            ws.column_dimensions['B'].width = 15  # 所属模块
+            ws.column_dimensions['C'].width = 30  # 用例标题
+            ws.column_dimensions['D'].width = 25  # 前置条件
+            ws.column_dimensions['E'].width = 45  # 测试步骤
+            ws.column_dimensions['F'].width = 35  # 预期结果
+            ws.column_dimensions['G'].width = 10  # 优先级
+            ws.column_dimensions['H'].width = 12  # 执行结果
+            ws.column_dimensions['I'].width = 20  # 备注
+            
+            # 冻结首行
+            ws.freeze_panes = 'A2'
             
             buffer = BytesIO()
             wb.save(buffer)
