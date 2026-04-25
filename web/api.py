@@ -470,6 +470,7 @@ def parse_testcase_content(content: str) -> dict:
     
     lines = content.split('\n')
     current_case = None
+    in_steps = False
     
     for line in lines:
         line = line.strip()
@@ -485,16 +486,26 @@ def parse_testcase_content(content: str) -> dict:
             if current_case:
                 result["cases"].append(current_case)
             
-            # 解析新用例
+            # 解析新用例 - 支持多种格式
+            # 格式1: TC001 使用正确的用户名和密码成功登录 [P0]
+            # 格式2: TC001 使用正确的用户名和密码成功登录[P0]
             match = re.match(r'(TC\d+)\s+(.+?)\s*\[([Pp]\d+)\]', line)
             if match:
                 case_id = match.group(1)
-                title = match.group(2)
+                title = match.group(2).strip()
                 priority = match.group(3).upper()
             else:
-                case_id = re.match(r'(TC\d+)', line).group(1)
-                title = line.replace(case_id, '').strip()
-                priority = "P2"
+                # 尝试没有空格的格式
+                match2 = re.match(r'(TC\d+)\s+(.+?)\[([Pp]\d+)\]', line)
+                if match2:
+                    case_id = match2.group(1)
+                    title = match2.group(2).strip()
+                    priority = match2.group(3).upper()
+                else:
+                    # 最简单的格式：只有TC编号
+                    case_id = re.match(r'(TC\d+)', line).group(1)
+                    title = line.replace(case_id, '').strip()
+                    priority = "P2"
             
             current_case = {
                 "id": case_id,
@@ -503,17 +514,29 @@ def parse_testcase_content(content: str) -> dict:
                 "steps": [],
                 "expected": ""
             }
-        # 检测步骤 (1. xxx 或 li 内容)
-        elif current_case and (re.match(r'^\d+[\.、]\s*', line) or line.startswith('预期:') or line.startswith('预期：')):
-            if line.startswith('预期:') or line.startswith('预期：'):
-                current_case["expected"] = line.replace('预期:', '').replace('预期：', '').strip()
+            in_steps = True
+        # 检测预期结果行（以"预期:"开头）
+        elif current_case and (line.startswith('预期:') or line.startswith('预期：')):
+            current_case["expected"] = line.replace('预期:', '').replace('预期：', '').strip()
+            in_steps = False
+        # 检测包含"预期"关键词的行
+        elif current_case and ('预期' in line and not line.startswith('TC')):
+            # 如果行以"预期"开头或在中间
+            if line.startswith('预期'):
+                current_case["expected"] = re.sub(r'^预期[：:]\s*', '', line)
             else:
-                # 移除序号前缀
-                step = re.sub(r'^\d+[\.、]\s*', '', line)
+                # 可能是 "预期:xxx" 格式
+                expected_match = re.search(r'预期[：:]\s*(.+)', line)
+                if expected_match:
+                    current_case["expected"] = expected_match.group(1).strip()
+            in_steps = False
+        # 检测步骤（在用例标题之后，预期结果之前的行）
+        elif current_case and in_steps and not line.startswith('TC'):
+            # 这可能是步骤内容
+            # 移除可能的序号前缀
+            step = re.sub(r'^\d+[\.、]\s*', '', line)
+            if step and not step.startswith('预期'):
                 current_case["steps"].append(step)
-        # 检测预期结果行
-        elif current_case and ('预期' in line or 'expected' in line.lower()):
-            current_case["expected"] = re.sub(r'.*预期[：:]\s*', '', line, flags=re.IGNORECASE)
     
     # 保存最后一个用例
     if current_case:
