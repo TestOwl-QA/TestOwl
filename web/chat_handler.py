@@ -1,5 +1,12 @@
 import asyncio
 import json
+import os
+from pathlib import Path
+
+# 动态添加项目根目录到路径
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+import sys
+sys.path.insert(0, str(PROJECT_ROOT))
 
 async def detect_intent(client, user_msg, history):
     """自然对话中识别意图"""

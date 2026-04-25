@@ -51,6 +51,14 @@ class LLMClient:
             "base_url": "https://api.deepseek.com/v1",
             "model": "deepseek-chat",
         },
+        "siliconflow": {
+            "base_url": "https://api.siliconflow.cn/v1",
+            "model": "deepseek-ai/DeepSeek-V2.5",
+        },
+        "openrouter": {
+            "base_url": "https://openrouter.ai/api/v1",
+            "model": "anthropic/claude-3.5-sonnet",
+        },
     }
     
     def __init__(self, config: Config):

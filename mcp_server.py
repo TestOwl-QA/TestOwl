@@ -29,6 +29,7 @@ from src.skills.document_analyzer import DocumentAnalyzerSkill
 from src.skills.test_case_generator import TestCaseGeneratorSkill
 from src.skills.bug_tracker import BugTrackerSkill
 from src.skills.table_checker import TableCheckerSkill
+from src.skills.db_checker import DBCheckerSkill
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -94,6 +95,48 @@ class MCPHandler:
                              "file_path": {"type": "string", "description": "已上传的表格文件路径（SSE模式）"},
                              "text": {"type": "string", "description": "直接传入的表格数据描述"}
                          }
+                     }),
+                
+                # 数据库检查
+                Tool(name="check_database", description="检查数据库连接、结构、数据完整性和游戏业务规则。支持 MySQL/PostgreSQL/SQLite",
+                     inputSchema={
+                         "type": "object",
+                         "properties": {
+                             "check_type": {
+                                 "type": "string",
+                                 "enum": ["connection", "structure", "data_validation", "game_rules", "full"],
+                                 "description": "检查类型：connection(连接测试)/structure(结构检查)/data_validation(数据验证)/game_rules(游戏规则)/full(全部)",
+                                 "default": "full"
+                             },
+                             "connection": {
+                                 "type": "object",
+                                 "description": "数据库连接配置",
+                                 "properties": {
+                                     "conn_str": {"type": "string", "description": "连接字符串，如 mysql://user:pass@host:3306/db"},
+                                     "db_type": {"type": "string", "enum": ["mysql", "postgres", "sqlite"], "description": "数据库类型"},
+                                     "host": {"type": "string", "description": "主机地址"},
+                                     "port": {"type": "integer", "description": "端口"},
+                                     "database": {"type": "string", "description": "数据库名"},
+                                     "user": {"type": "string", "description": "用户名"},
+                                     "password": {"type": "string", "description": "密码"}
+                                 }
+                             },
+                             "target_tables": {
+                                 "type": "array",
+                                 "items": {"type": "string"},
+                                 "description": "指定检查的表名列表，为空则检查所有表"
+                             },
+                             "game_type": {
+                                 "type": "string",
+                                 "enum": ["rpg", "card", "casual", "competitive", "simulation"],
+                                 "description": "游戏类型，用于加载对应业务规则"
+                             },
+                             "rule_config": {
+                                 "type": "object",
+                                 "description": "规则配置参数"
+                             }
+                         },
+                         "required": ["connection"]
                      })
             ]
         
@@ -147,12 +190,16 @@ class MCPHandler:
             text = arguments.get("text", "")
             content_base64 = arguments.get("content_base64", "")
             
-            if file_path:
+            if content_base64:
                 result = await self.agent.execute("table_checker", {"content": base64.b64decode(content_base64).decode("utf-8")})
             elif text:
                 result = await self.agent.execute("table_checker", {"text": text})
             else:
                 return [TextContent(type="text", text="错误：需要提供 text 或 content_base64")]
+        
+        elif name == "check_database":
+            result = await self.agent.execute("db_checker", arguments)
+        
         else:
             return [TextContent(type="text", text=f"未知工具: {name}")]
         
@@ -202,6 +249,7 @@ class MCPHandler:
         self.agent.register_skill("test_case_generator", TestCaseGeneratorSkill(config))
         self.agent.register_skill("bug_tracker", BugTrackerSkill(config))
         self.agent.register_skill("table_checker", TableCheckerSkill(config))
+        self.agent.register_skill("db_checker", DBCheckerSkill(config))
 
 
 # ==================== STDIO 模式 ====================

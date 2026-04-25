@@ -28,7 +28,10 @@ import shutil
 from typing import Optional
 import asyncio
 
-sys.path.insert(0, '/root/testowl')
+# 动态添加项目根目录到路径
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+sys.path.insert(0, str(PROJECT_ROOT))
+
 from src.core.config import Config
 
 app = FastAPI(title="TestOwl API")
@@ -163,12 +166,10 @@ async def analyze(req: AnalyzeRequest):
     try:
         config = get_config_with_key(key)
         from src.adapters.llm.client import LLMClient
-        client = LLMClient(config)
         
         text = req.text[:6000] if len(req.text) > 6000 else req.text
         model = get_model_for_task('analyze', len(text))
         config.llm.model = model
-        from src.adapters.llm.client import LLMClient
         client = LLMClient(config)
         
         prompt = "分析需求，提取测试点、风险点、待确认问题。返回JSON: " + text + " 必须包含: {document_summary,test_points:[{id,title,description,priority,category}],risk_points:[{description,impact}],questions:[{question}]}"
@@ -196,12 +197,10 @@ async def generate_cases(req: AnalyzeRequest):
     try:
         config = get_config_with_key(key)
         from src.adapters.llm.client import LLMClient
-        client = LLMClient(config)
         
         text = req.text[:5000] if len(req.text) > 5000 else req.text
         model = get_model_for_task('generate', len(text))
         config.llm.model = model
-        from src.adapters.llm.client import LLMClient
         client = LLMClient(config)
         
         prompt = f"根据以下需求生成测试用例JSON: {text} 格式: test_cases数组"
@@ -344,8 +343,6 @@ async def export_report(req: AnalyzeRequest):
         return {"success": False, "error": "未配置API Key"}
     try:
         config = get_config_with_key(key)
-        from src.adapters.llm.client import LLMClient
-        client = LLMClient(config)
         from src.adapters.llm.client import LLMClient
         client = LLMClient(config)
         
@@ -504,7 +501,7 @@ async def run_test():
     return {"status": "developing", "message": "功能开发中"}
 
 @app.get("/files/list")
-async def list_files(path: str = "/root/testowl"):
+async def list_files(path: str = "."):
     """获取文件列表（开发者模式）"""
     import os
     try:
