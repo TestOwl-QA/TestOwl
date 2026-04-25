@@ -316,7 +316,8 @@ async def health():
         with open('/root/testowl/web/index.html', 'r') as f:
             html = f.read()
         # 检查前端导出按钮传的参数（支持 exportChat 和 exportBubble）
-        frontend_formats = re.findall(r"export(Chat|Bubble)\('(\w+)'\)", html)
+        # 匹配 exportBubble('md') 或 exportBubble(\'md\')
+        frontend_formats = re.findall(r"export(Chat|Bubble)\\?['\"](\w+)\\?['\"]", html)
         # 提取格式参数
         formats = [match[1] for match in frontend_formats]
         expected = ['md', 'pdf', 'xlsx', 'docx']
