@@ -42,16 +42,17 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 .msg.assistant{justify-content:flex-start;position:relative}
 .msg.assistant .bubble{background:#fff;color:#5c4b37;border-radius:20px 20px 20px 4px;border:1px solid #e8e4df;position:relative}
 
-.bubble{padding:14px 18px;max-width:75%;font-size:14px;line-height:1.7;word-wrap:break-word}
+.bubble{padding:20px 24px;max-width:75%;font-size:14px;line-height:1.8;word-wrap:break-word;position:relative}
 
-/* 气泡导出按钮 */
-.bubble-export{position:absolute;top:4px;right:4px;opacity:0;transition:opacity 0.2s;padding:3px;cursor:pointer;color:#c4a77d;background:#fff;border-radius:4px;border:1px solid #e8e4df;z-index:10}
+/* 气泡导出按钮 - 放在气泡内部右上角 */
+.bubble-export{position:absolute;top:12px;right:12px;opacity:0;transition:opacity 0.2s;padding:6px;cursor:pointer;color:#c4a77d;background:#f5f0e8;border-radius:6px;border:1px solid #e8e4df;z-index:10}
 .msg.assistant:hover .bubble-export{opacity:1}
-.bubble-export:hover{background:#f5f0e8}
-.bubble-export svg{width:14px;height:14px}
+.bubble-export:hover{background:#e8dfd3;color:#8b7355}
+.bubble-export svg{width:16px;height:16px}
 
 /* 气泡导出菜单 */
-.bubble-export-menu{display:none;position:absolute;top:28px;right:0;background:#fff;border:1px solid #e8e4df;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);min-width:100px;z-index:100}.bubble-export-menu.show{display:block}
+.bubble-export-menu{display:none;position:absolute;top:36px;right:0;background:#fff;border:1px solid #e8e4df;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);min-width:120px;z-index:100}
+.bubble-export-menu.show{display:block}
 .bubble-export-menu-item{padding:8px 12px;cursor:pointer;font-size:12px;color:#5c4b37;transition:all 0.2s;border-bottom:1px solid #f5f0e8}
 .bubble-export-menu-item:last-child{border-bottom:none}
 .bubble-export-menu-item:hover{background:#f5f0e8}
@@ -206,13 +207,16 @@ function addMessage(role, content, isTyping = false) {
   const msgId = 'msg-' + Date.now();
   
   if (role === 'assistant') {
-    div.innerHTML = '<div class="ai-avatar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z"/><circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/><path d="M12 17c1.5 0 2.5-.83 3-1.5"/></svg></div><div class="bubble" id="' + msgId + '"><div class="bubble-export" onclick="showExportMenu(event, \'' + msgId + '\')" title="导出报告"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></div></div>';
+    div.innerHTML = '<div class="ai-avatar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7z"/><circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/><path d="M12 17c1.5 0 2.5-.83 3-1.5"/></svg></div><div class="bubble" id="' + msgId + '"><div class="bubble-export" onclick="showExportMenu(event, \'' + msgId + '\')" title="导出报告"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></div><div class="bubble-content"></div></div>';
   } else {
     div.innerHTML = '<div class="bubble">' + escapeHtml(content) + '</div>';
   }
   
   container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
+  // 使用 requestAnimationFrame 确保 DOM 更新后再滚动
+  requestAnimationFrame(() => {
+    container.scrollTo({top: container.scrollHeight, behavior: 'smooth'});
+  });
   
   if (isTyping && role === 'assistant') {
     return div.querySelector('.bubble');
@@ -223,7 +227,13 @@ function addMessage(role, content, isTyping = false) {
 // 打字机效果（按段落显示，不逐字符）
 async function typeWriter(element, text, speed = 30) {
   isTyping = true;
-  element.innerHTML = '';
+  
+  // 找到 bubble-content 元素，如果没有则使用 element 本身
+  const contentElement = element.querySelector('.bubble-content') || element;
+  contentElement.innerHTML = '';
+  
+  // 自动滚动到底部
+  const container = document.getElementById('chatMessages');
   
   return new Promise(resolve => {
     // 先将文本分段
@@ -234,13 +244,17 @@ async function typeWriter(element, text, speed = 30) {
       if (currentIndex < paragraphs.length) {
         // 显示已处理的所有段落
         const processedText = paragraphs.slice(0, currentIndex + 1).join('\n');
-        element.innerHTML = formatText(processedText);
+        contentElement.innerHTML = formatText(processedText);
+        // 每次更新后滚动到底部
+        container.scrollTo({top: container.scrollHeight, behavior: 'auto'});
         currentIndex++;
         setTimeout(showNext, Math.min(speed * 3, 100));
       } else {
         isTyping = false;
         // 最终格式化
-        element.innerHTML = formatText(text);
+        contentElement.innerHTML = formatText(text);
+        // 最终滚动到底部
+        container.scrollTo({top: container.scrollHeight, behavior: 'smooth'});
         resolve();
       }
     }
