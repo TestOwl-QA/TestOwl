@@ -669,31 +669,34 @@ def parse_testcase_content(content: str) -> dict:
         # 检测标题
         if line.startswith('测试用例'):
             result["title"] = line
-        # 检测用例标题行 (TC001 xxx [P0])
-        elif re.match(r'^TC\d+', line):
+        # 检测用例标题行 (TC001 xxx [P0]) - 支持Markdown格式 **TC001**
+        elif re.match(r'\*?\*?TC\d+', line):
             # 保存上一个用例
             if current_case:
                 result["cases"].append(current_case)
             
+            # 清理Markdown标记 **
+            clean_line = re.sub(r'\*+', '', line).strip()
+            
             # 解析新用例 - 支持多种格式
             # 格式1: TC001 使用正确的用户名和密码成功登录 [P0]
             # 格式2: TC001 使用正确的用户名和密码成功登录[P0]
-            match = re.match(r'(TC\d+)\s+(.+?)\s*\[([Pp]\d+)\]', line)
+            match = re.match(r'(TC\d+)\s+(.+?)\s*\[([Pp]\d+)\]', clean_line)
             if match:
                 case_id = match.group(1)
                 title = match.group(2).strip()
                 priority = match.group(3).upper()
             else:
                 # 尝试没有空格的格式
-                match2 = re.match(r'(TC\d+)\s+(.+?)\[([Pp]\d+)\]', line)
+                match2 = re.match(r'(TC\d+)\s+(.+?)\[([Pp]\d+)\]', clean_line)
                 if match2:
                     case_id = match2.group(1)
                     title = match2.group(2).strip()
                     priority = match2.group(3).upper()
                 else:
                     # 最简单的格式：只有TC编号
-                    case_id = re.match(r'(TC\d+)', line).group(1)
-                    title = line.replace(case_id, '').strip()
+                    case_id = re.match(r'(TC\d+)', clean_line).group(1)
+                    title = clean_line.replace(case_id, '').strip()
                     priority = "P2"
             
             current_case = {
