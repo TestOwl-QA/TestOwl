@@ -46,6 +46,9 @@ app.add_middleware(
 
 sessions = {}
 
+# 存储上传文件内容的字典（内存存储，重启后丢失）
+file_contents = {}
+
 class SaveKeyRequest(BaseModel):
     api_key: str
 
@@ -71,48 +74,110 @@ def get_config_with_key(api_key: str):
     return config
 
 def parse_file(file_path: str, suffix: str) -> str:
+    """解析各种格式的文件内容为文本"""
     content = ""
-    if suffix == '.txt':
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            content = f.read()
-    elif suffix in ['.docx', '.doc']:
-        from docx import Document
-        doc = Document(file_path)
-        content = '\n'.join([p.text for p in doc.paragraphs if p.text.strip()])
-    elif suffix == '.pdf':
-        from pypdf import PdfReader
-        reader = PdfReader(file_path)
-        content = '\n'.join([page.extract_text() or '' for page in reader.pages])
-    elif suffix in ['.xlsx', '.xls']:
-        from openpyxl import load_workbook
-        wb = load_workbook(file_path, data_only=True)
-        texts = []
-        for sheet in wb.worksheets:
-            texts.append(f"=== {sheet.title} ===")
-            for row in sheet.iter_rows(values_only=True):
-                if any(cell for cell in row):
-                    texts.append(' | '.join(str(cell or '') for cell in row))
-        content = '\n'.join(texts)
-    elif suffix == '.pptx':
-        from pptx import Presentation
-        prs = Presentation(file_path)
-        texts = []
-        for i, slide in enumerate(prs.slides):
-            texts.append(f"=== 第{i+1}页 ===")
-            for shape in slide.shapes:
-                if hasattr(shape, 'text') and shape.text.strip():
-                    texts.append(shape.text)
-        content = '\n'.join(texts)
-    elif suffix in ['.png', '.jpg', '.jpeg', '.bmp', '.gif']:
-        try:
-            import pytesseract
-            from PIL import Image
-            img = Image.open(file_path)
-            content = pytesseract.image_to_string(img, lang='chi_sim+eng')
-        except ImportError:
-            content = "[OCR功能未安装，请安装: pip install pytesseract Pillow]"
-        except Exception as e:
-            content = f"[图片OCR失败: {str(e)}]"
+    try:
+        if suffix == '.txt' or suffix == '.md':
+            # 文本文件和 Markdown 文件
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+        elif suffix in ['.docx', '.doc']:
+            # Word 文档
+            try:
+                from docx import Document
+                doc = Document(file_path)
+                content = '\n'.join([p.text for p in doc.paragraphs if p.text.strip()])
+            except ImportError:
+                return "[错误：未安装 python-docx，请运行：pip install python-docx]"
+            except Exception as e:
+                return f"[Word文档解析失败: {str(e)}]"
+        elif suffix == '.pdf':
+            # PDF 文件
+            try:
+                # 尝试使用 pypdf (新版)
+                from pypdf import PdfReader
+                reader = PdfReader(file_path)
+                content = '\n'.join([page.extract_text() or '' for page in reader.pages])
+            except ImportError:
+                # 回退到 PyPDF2 (旧版)
+                try:
+                    from PyPDF2 import PdfReader
+                    reader = PdfReader(file_path)
+                    content = '\n'.join([page.extract_text() or '' for page in reader.pages])
+                except ImportError:
+                    return "[错误：未安装 PDF 解析库，请运行：pip install pypdf 或 pip install PyPDF2]"
+            except Exception as e:
+                return f"[PDF解析失败: {str(e)}]"
+        elif suffix in ['.xlsx', '.xls']:
+            # Excel 文件
+            try:
+                from openpyxl import load_workbook
+                wb = load_workbook(file_path, data_only=True)
+                texts = []
+                for sheet in wb.worksheets:
+                    texts.append(f"=== {sheet.title} ===")
+                    for row in sheet.iter_rows(values_only=True):
+                        if any(cell for cell in row):
+                            texts.append(' | '.join(str(cell or '') for cell in row))
+                content = '\n'.join(texts)
+            except ImportError:
+                return "[错误：未安装 openpyxl，请运行：pip install openpyxl]"
+            except Exception as e:
+                return f"[Excel解析失败: {str(e)}]"
+        elif suffix == '.pptx':
+            # PPT 文件
+            try:
+                from pptx import Presentation
+                prs = Presentation(file_path)
+                texts = []
+                for i, slide in enumerate(prs.slides):
+                    texts.append(f"=== 第{i+1}页 ===")
+                    for shape in slide.shapes:
+                        if hasattr(shape, 'text') and shape.text.strip():
+                            texts.append(shape.text)
+                content = '\n'.join(texts)
+            except ImportError:
+                return "[错误：未安装 python-pptx，请运行：pip install python-pptx]"
+            except Exception as e:
+                return f"[PPT解析失败: {str(e)}]"
+        elif suffix in ['.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp']:
+            # 图片文件 - OCR
+            try:
+                import pytesseract
+                from PIL import Image
+                img = Image.open(file_path)
+                content = pytesseract.image_to_string(img, lang='chi_sim+eng')
+                if not content.strip():
+                    content = "[图片中未识别到文字内容]"
+            except ImportError:
+                return "[错误：OCR功能未安装，请运行：pip install pytesseract Pillow，并安装Tesseract-OCR引擎]"
+            except Exception as e:
+                return f"[图片OCR失败: {str(e)}]"
+        elif suffix in ['.csv']:
+            # CSV 文件
+            try:
+                import csv
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    reader = csv.reader(f)
+                    rows = [' | '.join(row) for row in reader]
+                    content = '\n'.join(rows)
+            except Exception as e:
+                return f"[CSV解析失败: {str(e)}]"
+        elif suffix in ['.json']:
+            # JSON 文件
+            try:
+                import json
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    data = json.load(f)
+                    content = json.dumps(data, ensure_ascii=False, indent=2)
+            except Exception as e:
+                return f"[JSON解析失败: {str(e)}]"
+        else:
+            # 不支持的格式
+            return f"[不支持的文件格式: {suffix}，支持的格式：txt, md, docx, pdf, xlsx, pptx, png, jpg, csv, json]"
+    except Exception as e:
+        return f"[文件解析错误: {str(e)}]"
+    
     return content.strip()
 
 def fetch_url(url: str) -> str:
@@ -142,18 +207,51 @@ async def save_key(req: SaveKeyRequest):
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
+    """上传文件并解析内容"""
     try:
+        # 确保上传目录存在
+        upload_dir = Path("uploads")
+        upload_dir.mkdir(exist_ok=True)
+        
+        # 生成唯一文件名
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         suffix = os.path.splitext(file.filename)[1].lower()
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            shutil.copyfileobj(file.file, tmp)
-            tmp_path = tmp.name
-        content = parse_file(tmp_path, suffix)
-        os.unlink(tmp_path)
+        safe_filename = f"{timestamp}_{file.filename}"
+        file_path = upload_dir / safe_filename
+        
+        # 保存文件
+        with open(file_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+        
+        # 解析文件内容
+        content = parse_file(str(file_path), suffix)
+        
+        # 生成文件ID
+        file_id = f"file_{timestamp}"
+        
+        # 保存文件内容到内存（供后续分析使用）
+        file_contents[file_id] = {
+            "filename": file.filename,
+            "content": content,
+            "path": str(file_path),
+            "upload_time": datetime.now().isoformat()
+        }
+        
+        # 清理临时文件（保留原始文件）
+        # os.unlink(tmp_path)
+        
         if not content:
-            return {"success": False, "error": "文件内容为空"}
-        return {"success": True, "text": content}
+            return {"success": False, "error": "文件内容为空或无法解析"}
+        
+        return {
+            "success": True, 
+            "file_id": file_id,
+            "filename": file.filename,
+            "text": content[:500] + "..." if len(content) > 500 else content  # 返回前500字符预览
+        }
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        import traceback
+        return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
 
 @app.post("/fetch_url")
 async def fetch_url_endpoint(req: UrlRequest):
@@ -162,6 +260,20 @@ async def fetch_url_endpoint(req: UrlRequest):
         return {"success": True, "text": content}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+@app.get("/file/{file_id}")
+async def get_file(file_id: str):
+    """获取上传文件的内容"""
+    if file_id not in file_contents:
+        return {"success": False, "error": "文件不存在或已过期"}
+    
+    file_info = file_contents[file_id]
+    return {
+        "success": True,
+        "file_id": file_id,
+        "filename": file_info["filename"],
+        "content": file_info["content"]
+    }
 
 @app.post("/analyze")
 async def analyze(req: AnalyzeRequest):
