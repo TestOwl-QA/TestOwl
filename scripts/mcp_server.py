@@ -328,14 +328,15 @@ class MCPHandler:
                 self.server.create_initialization_options(),
             )
     
-    async def run_sse(self, host: str = "0.0.0.0", port: int = 8000):
-        """运行 SSE 模式"""
+    def run_sse(self, host: str = "0.0.0.0", port: int = 8000):
+        """运行 SSE 模式（同步方法，内部处理异步）"""
         from mcp.server.sse import SseServerTransport
         from starlette.applications import Starlette
         from starlette.routing import Route, Mount
         from starlette.responses import JSONResponse
         from starlette.middleware import Middleware
         from starlette.middleware.cors import CORSMiddleware
+        import uvicorn
         
         sse = SseServerTransport("/messages/")
         
@@ -403,7 +404,6 @@ class MCPHandler:
         
         app = Starlette(debug=True, routes=routes, middleware=middleware)
         
-        import uvicorn
         print(f"🚀 MCP SSE 服务器启动于 http://{host}:{port}")
         print(f"   SSE 端点: http://{host}:{port}/sse")
         uvicorn.run(app, host=host, port=port)
@@ -423,8 +423,10 @@ def main():
     handler = MCPHandler()
     
     if args.sse:
-        asyncio.run(handler.run_sse(host=args.host, port=args.port))
+        # SSE 模式：直接调用同步方法
+        handler.run_sse(host=args.host, port=args.port)
     else:
+        # STDIO 模式：使用 asyncio
         asyncio.run(handler.run_stdio())
 
 
