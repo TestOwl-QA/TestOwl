@@ -419,36 +419,52 @@ def parse_analysis_content(content: str) -> dict:
     
     lines = content.split('\n')
     current_section = None
+    summary_lines = []
     
     for line in lines:
         line = line.strip()
         if not line:
+            # 空行处理：如果在概述部分，保留一个换行
+            if current_section == "summary" and summary_lines:
+                summary_lines.append("")
             continue
             
         # 检测标题
         if line.startswith('需求分析') or line.startswith('测试分析'):
             result["title"] = line
             current_section = "summary"
-        elif line.startswith('测试点'):
+        elif line.startswith('测试点') or line.startswith('## 测试点'):
+            # 保存已收集的概述
+            if summary_lines:
+                result["summary"] = '\n'.join(summary_lines).strip()
             current_section = "test_points"
-        elif line.startswith('风险'):
+        elif line.startswith('风险') or line.startswith('## 风险'):
+            # 保存已收集的概述
+            if summary_lines and not result["summary"]:
+                result["summary"] = '\n'.join(summary_lines).strip()
             current_section = "risks"
-        elif current_section == "summary" and not result["summary"]:
-            result["summary"] = line
+        elif current_section == "summary":
+            # 收集概述内容（多行）
+            summary_lines.append(line)
         elif current_section == "test_points":
             # 解析测试点 [P0] 标题 - 描述
-            if line.startswith('•') or line.startswith('-') or line.startswith('*'):
+            if line.startswith('•') or line.startswith('-') or line.startswith('*') or re.match(r'^\d+\.', line):
                 # 提取优先级和内容
                 priority_match = re.search(r'\[([Pp]\d+)\]', line)
                 priority = priority_match.group(1).upper() if priority_match else "P2"
                 
-                # 移除 bullet 和优先级标记
+                # 移除 bullet、序号和优先级标记
                 clean_line = re.sub(r'^[•\-\*]\s*', '', line)
+                clean_line = re.sub(r'^\d+\.\s*', '', clean_line)
                 clean_line = re.sub(r'\[[Pp]\d+\]\s*', '', clean_line)
                 
                 # 分割标题和描述
                 if ' - ' in clean_line:
                     title, desc = clean_line.split(' - ', 1)
+                elif '：' in clean_line:
+                    title, desc = clean_line.split('：', 1)
+                elif ':' in clean_line:
+                    title, desc = clean_line.split(':', 1)
                 else:
                     title, desc = clean_line, ""
                 
@@ -458,9 +474,14 @@ def parse_analysis_content(content: str) -> dict:
                     "description": desc.strip()
                 })
         elif current_section == "risks":
-            if line.startswith('•') or line.startswith('-') or line.startswith('*'):
+            if line.startswith('•') or line.startswith('-') or line.startswith('*') or re.match(r'^\d+\.', line):
                 risk = re.sub(r'^[•\-\*]\s*', '', line)
+                risk = re.sub(r'^\d+\.\s*', '', risk)
                 result["risks"].append(risk)
+    
+    # 最后保存概述（如果还没有保存）
+    if summary_lines and not result["summary"]:
+        result["summary"] = '\n'.join(summary_lines).strip()
     
     return result
 
