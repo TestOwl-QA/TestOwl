@@ -66,12 +66,12 @@ class ExcelExporter:
         # 标准测试用例表格格式（与web/api.py保持一致）
         headers = ['用例编号', '所属模块', '用例标题', '前置条件', '测试步骤', '预期结果', '优先级', '执行结果', '备注']
         
-        # 定义样式
-        header_font = Font(bold=True, color="FFFFFF", size=11)
+        # 定义样式 - 使用通用字体 Arial（跨平台兼容）
+        header_font = Font(bold=True, color="FFFFFF", size=11, name='Arial')
         header_fill = PatternFill(start_color="C4A77D", end_color="C4A77D", fill_type="solid")
         header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         
-        data_font = Font(size=10)
+        data_font = Font(size=10, name='Arial')
         data_alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
         priority_alignment = Alignment(horizontal="center", vertical="center")
         
@@ -143,7 +143,7 @@ class ExcelExporter:
                         cell.fill = PatternFill(start_color=priority_colors[priority], 
                                                end_color=priority_colors[priority], 
                                                fill_type='solid')
-                        cell.font = Font(bold=True, color='FFFFFF', size=10)
+                        cell.font = Font(bold=True, color='FFFFFF', size=10, name='Arial')
                 # 用例编号居中
                 elif col_idx == 1:
                     cell.alignment = Alignment(horizontal='center', vertical='center')

@@ -766,24 +766,8 @@ def export_analysis_report(parsed: dict, fmt: str, timestamp: str) -> dict:
             from reportlab.lib.units import inch
             from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
             from reportlab.lib import colors
-            from reportlab.pdfbase import pdfmetrics
-            from reportlab.pdfbase.ttfonts import TTFont
             
-            font_name = 'Helvetica'
-            font_paths = [
-                '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
-                '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
-                '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
-                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-            ]
-            for font_path in font_paths:
-                try:
-                    if os.path.exists(font_path):
-                        pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
-                        font_name = 'ChineseFont'
-                        break
-                except Exception:
-                    continue
+            font_name = register_pdf_font()
             
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=A4,
@@ -888,29 +872,46 @@ def export_analysis_report(parsed: dict, fmt: str, timestamp: str) -> dict:
             from docx import Document
             from docx.shared import Pt, RGBColor, Inches
             from docx.enum.text import WD_ALIGN_PARAGRAPH
+            from docx.oxml.ns import qn
             
             doc = Document()
             
-            title = doc.add_heading(parsed['title'], 0)
+            # 设置文档默认字体为通用字体
+            def set_run_font(run, font_name='Arial', font_size=11, bold=False):
+                run.font.name = font_name
+                run._element.rPr.rFonts.set(qn('w:eastAsia'), font_name)
+                run.font.size = Pt(font_size)
+                run.bold = bold
+            
+            # 添加标题
+            title = doc.add_heading(level=0)
+            title_run = title.add_run(parsed['title'])
+            set_run_font(title_run, font_size=18, bold=True)
             title.alignment = WD_ALIGN_PARAGRAPH.CENTER
             
             if parsed['summary']:
-                doc.add_heading('概述', level=1)
-                doc.add_paragraph(parsed['summary'])
+                h = doc.add_heading(level=1)
+                set_run_font(h.add_run('概述'), font_size=14, bold=True)
+                p = doc.add_paragraph()
+                set_run_font(p.add_run(parsed['summary']), font_size=11)
             
             if parsed['test_points']:
-                doc.add_heading('测试点', level=1)
+                h = doc.add_heading(level=1)
+                set_run_font(h.add_run('测试点'), font_size=14, bold=True)
                 for tp in parsed['test_points']:
                     p = doc.add_paragraph()
-                    p.add_run(f"[{tp['priority']}] ").bold = True
-                    p.add_run(tp['title']).bold = True
+                    set_run_font(p.add_run(f"[{tp['priority']}] "), font_size=11, bold=True)
+                    set_run_font(p.add_run(tp['title']), font_size=11, bold=True)
                     if tp['description']:
-                        doc.add_paragraph(tp['description'], style='List Bullet')
+                        p2 = doc.add_paragraph(style='List Bullet')
+                        set_run_font(p2.add_run(tp['description']), font_size=10)
             
             if parsed['risks']:
-                doc.add_heading('风险', level=1)
+                h = doc.add_heading(level=1)
+                set_run_font(h.add_run('风险'), font_size=14, bold=True)
                 for risk in parsed['risks']:
-                    doc.add_paragraph(risk, style='List Bullet')
+                    p = doc.add_paragraph(style='List Bullet')
+                    set_run_font(p.add_run(risk), font_size=10)
             
             buffer = BytesIO()
             doc.save(buffer)
@@ -956,24 +957,8 @@ def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
             from reportlab.lib.units import inch
             from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
             from reportlab.lib import colors
-            from reportlab.pdfbase import pdfmetrics
-            from reportlab.pdfbase.ttfonts import TTFont
             
-            font_name = 'Helvetica'
-            font_paths = [
-                '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
-                '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
-                '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
-                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-            ]
-            for font_path in font_paths:
-                try:
-                    if os.path.exists(font_path):
-                        pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
-                        font_name = 'ChineseFont'
-                        break
-                except Exception:
-                    continue
+            font_name = register_pdf_font()
             
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=A4,
@@ -1019,9 +1004,9 @@ def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
             headers = ['用例编号', '所属模块', '用例标题', '前置条件', '测试步骤', '预期结果', '优先级', '执行结果', '备注']
             ws.append(headers)
             
-            # 表头样式
+            # 表头样式 - 使用通用字体
             header_fill = PatternFill(start_color='C4A77D', end_color='C4A77D', fill_type='solid')
-            header_font = Font(bold=True, color='FFFFFF', size=11)
+            header_font = Font(bold=True, color='FFFFFF', size=11, name='Arial')
             header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             thin_border = Border(
                 left=Side(style='thin', color='d4c8b8'),
@@ -1039,8 +1024,8 @@ def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
             # 设置表头行高
             ws.row_dimensions[1].height = 30
             
-            # 数据行样式
-            data_font = Font(size=10)
+            # 数据行样式 - 使用通用字体
+            data_font = Font(size=10, name='Arial')
             data_alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
             priority_alignment = Alignment(horizontal='center', vertical='center')
             
@@ -1084,7 +1069,7 @@ def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
                             cell.fill = PatternFill(start_color=priority_colors[priority], 
                                                    end_color=priority_colors[priority], 
                                                    fill_type='solid')
-                            cell.font = Font(bold=True, color='FFFFFF', size=10)
+                            cell.font = Font(bold=True, color='FFFFFF', size=10, name='Arial')
                     # 用例编号居中
                     elif col_idx == 1:
                         cell.alignment = Alignment(horizontal='center', vertical='center')
@@ -1117,23 +1102,37 @@ def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
             from docx import Document
             from docx.shared import Pt, RGBColor, Inches
             from docx.enum.text import WD_ALIGN_PARAGRAPH
+            from docx.oxml.ns import qn
             
             doc = Document()
             
-            title = doc.add_heading(parsed['title'], 0)
+            # 设置文档默认字体为通用字体
+            def set_run_font(run, font_name='Arial', font_size=11, bold=False):
+                run.font.name = font_name
+                run._element.rPr.rFonts.set(qn('w:eastAsia'), font_name)
+                run.font.size = Pt(font_size)
+                run.bold = bold
+            
+            # 添加标题
+            title = doc.add_heading(level=0)
+            title_run = title.add_run(parsed['title'])
+            set_run_font(title_run, font_size=18, bold=True)
             title.alignment = WD_ALIGN_PARAGRAPH.CENTER
             
             for case in parsed['cases']:
-                p = doc.add_heading(level=2)
-                run = p.add_run(f"{case['id']} {case['title']} [{case['priority']}]")
-                run.bold = True
+                h = doc.add_heading(level=2)
+                set_run_font(h.add_run(f"{case['id']} {case['title']} [{case['priority']}]"), font_size=13, bold=True)
                 
-                doc.add_paragraph("测试步骤：", style='Heading 3')
+                h3 = doc.add_heading(level=3)
+                set_run_font(h3.add_run("测试步骤："), font_size=11, bold=True)
                 for i, step in enumerate(case['steps'], 1):
-                    doc.add_paragraph(f"{i}. {step}", style='List Number')
+                    p = doc.add_paragraph(style='List Number')
+                    set_run_font(p.add_run(f"{step}"), font_size=10)
                 
-                doc.add_paragraph("预期结果：", style='Heading 3')
-                doc.add_paragraph(case['expected'])
+                h3 = doc.add_heading(level=3)
+                set_run_font(h3.add_run("预期结果："), font_size=11, bold=True)
+                p = doc.add_paragraph()
+                set_run_font(p.add_run(case['expected']), font_size=10)
                 doc.add_paragraph()  # 空行
             
             buffer = BytesIO()
