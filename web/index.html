@@ -85,9 +85,14 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 
 /* 输入区域 */
 .chat-input-area{position:fixed;bottom:0;left:200px;right:0;padding:20px;background:#faf8f5}
-.input-box{position:relative;max-width:900px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e8e4df;padding:14px 16px;display:flex;align-items:flex-end;gap:10px}
+.input-box{position:relative;max-width:900px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e8e4df;padding:16px 20px;display:flex;align-items:flex-end;gap:12px;max-height:300px}
 .input-box:focus-within{border-color:#c4a77d;box-shadow:0 2px 8px rgba(196,167,125,0.15)}
-.input-box textarea{flex:1;border:none;outline:none;font-size:14px;resize:none;min-height:24px;max-height:150px;font-family:inherit;line-height:1.5}
+.input-box textarea{flex:1;border:none;outline:none;font-size:14px;resize:none;min-height:60px;max-height:220px;font-family:inherit;line-height:1.6;padding:8px 0;overflow-y:auto}
+/* 输入框滚动条样式 - 与对话区域保持一致 */
+.input-box textarea::-webkit-scrollbar{width:6px}
+.input-box textarea::-webkit-scrollbar-track{background:transparent}
+.input-box textarea::-webkit-scrollbar-thumb{background:#d4c8b8;border-radius:3px}
+.input-box textarea::-webkit-scrollbar-thumb:hover{background:#c4a77d}
 .input-box button{padding:8px 16px;background:#c4a77d;color:white;border:none;border-radius:8px;cursor:pointer;font-size:13px;transition:all 0.2s}
 .input-box button:hover{background:#b08d65}
 .input-box button:disabled{background:#d4c8b8;cursor:not-allowed}
@@ -555,7 +560,7 @@ function formatText(text) {
 // 自动调整输入框高度
 document.getElementById('userInput').addEventListener('input', function() {
   this.style.height = 'auto';
-  this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+  this.style.height = Math.min(this.scrollHeight, 220) + 'px';
 });
 
 // 回车发送
