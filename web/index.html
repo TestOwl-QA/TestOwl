@@ -582,6 +582,21 @@ document.getElementById('userInput').addEventListener('keydown', function(e) {
   }
 });
 
+// 粘贴图片
+document.getElementById('userInput').addEventListener('paste', function(e) {
+  const items = e.clipboardData.items;
+  
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf('image') !== -1) {
+      e.preventDefault();
+      const blob = items[i].getAsFile();
+      const file = new File([blob], 'pasted_image_' + Date.now() + '.png', { type: blob.type });
+      handleFile(file);
+      break;
+    }
+  }
+});
+
 // 当前选中的消息ID
 let currentExportMsgId = null;
 
