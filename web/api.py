@@ -651,13 +651,46 @@ def parse_analysis_content(content: str) -> dict:
 
 
 def parse_testcase_content(content: str) -> dict:
-    """解析测试用例内容，提取结构化数据"""
+    """解析测试用例内容，提取结构化数据（支持HTML格式）"""
     result = {
         "title": "测试用例报告",
         "cases": []
     }
     
-    lines = content.split('\n')
+    # 首先尝试从HTML中提取JSON原始数据
+    # 如果内容包含JSON格式，直接解析
+    try:
+        # 查找可能的JSON数组
+        json_match = re.search(r'"cases"\s*:\s*(\[.*?\])', content, re.DOTALL)
+        if json_match:
+            json_str = '{"cases":' + json_match.group(1) + '}'
+            # 清理HTML标签
+            json_str = re.sub(r'<[^>]+>', '', json_str)
+            # 修复HTML实体
+            json_str = json_str.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+            data = json.loads(json_str)
+            cases = []
+            for c in data.get('cases', []):
+                cases.append({
+                    "id": c.get('id', 'TC001'),
+                    "title": c.get('title', ''),
+                    "priority": c.get('pri', 'P2'),
+                    "steps": c.get('steps', []),
+                    "expected": c.get('expected', '')
+                })
+            if cases:
+                result["cases"] = cases
+                return result
+    except Exception:
+        pass
+    
+    # 回退到HTML解析
+    # 清理HTML标签，提取纯文本
+    clean_content = re.sub(r'<[^>]+>', '\n', content)
+    # 修复HTML实体
+    clean_content = clean_content.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+    
+    lines = clean_content.split('\n')
     current_case = None
     in_steps = False
     
