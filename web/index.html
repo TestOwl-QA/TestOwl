@@ -415,12 +415,29 @@ async function sendMessage() {
   }
   
   const input = document.getElementById('userInput');
-  const message = input.value.trim();
+  let message = input.value.trim();
   if (!message) return;
   
   // 隐藏欢迎消息
   const welcome = document.querySelector('.welcome');
   if (welcome) welcome.remove();
+  
+  // 如果有待上传的文件，先上传
+  if (currentUploadFile) {
+    showThinking();
+    try {
+      await doUploadFile(currentUploadFile);
+    } catch (e) {
+      hideThinking();
+      addMessage('assistant', '文件上传失败: ' + e.message);
+      return;
+    }
+    hideThinking();
+    currentUploadFile = null;
+  }
+  
+  // 移除输入框中的文件提示
+  message = message.replace(/^📎 .+\n?/, '').trim();
   
   // 添加用户消息
   addMessage('user', message);
@@ -467,6 +484,9 @@ async function sendMessage() {
   }
 }
 
+// 当前上传的文件信息
+let currentUploadFile = null;
+
 // 处理文件上传
 async function handleFile(file) {
   if (!file) return;
@@ -476,31 +496,39 @@ async function handleFile(file) {
     return;
   }
   
+  // 保存文件信息，不上传，等用户输入需求后一起发送
+  currentUploadFile = file;
+  
+  // 在输入框显示文件提示
+  const input = document.getElementById('userInput');
+  const fileHint = '📎 ' + file.name + '\n';
+  if (!input.value.startsWith('📎')) {
+    input.value = fileHint + input.value;
+  }
+  input.focus();
+  
+  // 显示提示消息（不发送）
+  const bubble = addMessage('assistant', '', true);
+  await typeWriter(bubble, '文件《' + file.name + '》已准备好！\n\n请直接输入你的需求，例如：\n- "分析这个需求文档"\n- "生成测试用例"\n- "检查配置表"\n\n我会结合文档内容回答你的问题。');
+}
+
+// 实际执行文件上传
+async function doUploadFile(file) {
+  const token = localStorage.getItem('session_token');
   const formData = new FormData();
   formData.append('file', file);
   
-  try {
-    addMessage('user', '[文件] ' + file.name);
-    showThinking();
-    
-    const res = await fetch(API + '/upload', {
-      method: 'POST',
-      headers: {'Authorization': 'Bearer ' + token},
-      body: formData
-    });
-    
-    hideThinking();
-    const data = await res.json();
-    
-    if (data.file_id) {
-      currentFileId = data.file_id;  // 保存文件ID
-      const bubble = addMessage('assistant', '', true);
-      await typeWriter(bubble, '文件《' + data.filename + '》已接收并分析完成！\n\n你可以问我：\n- "分析这个需求"\n- "生成测试用例"\n- "检查配置表"\n\n或直接输入你的问题，我会结合文档内容回答。');
-    }
-  } catch (e) {
-    hideThinking();
-    addMessage('assistant', '上传失败: ' + e.message);
+  const res = await fetch(API + '/upload', {
+    method: 'POST',
+    headers: {'Authorization': 'Bearer ' + token},
+    body: formData
+  });
+  
+  const data = await res.json();
+  if (data.file_id) {
+    currentFileId = data.file_id;
   }
+  return data;
 }
 
 // 转义HTML
