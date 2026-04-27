@@ -475,7 +475,7 @@ from web.chat_handler import handle_chat
 
 @app.post("/chat")
 async def chat(req: dict):
-    return await handle_chat(req, get_api_key, get_config_with_key)
+    return await handle_chat(req, get_api_key, get_config_with_key, file_contents)
 
 @app.post("/export_chat")
 async def export_chat(req: dict):

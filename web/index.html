@@ -235,6 +235,7 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 <script>
 const API = window.location.hostname === 'localhost' ? 'http://localhost:8081' : 'http://121.41.36.197:8081';
 let isTyping = false;
+let currentFileId = null;  // 存储当前上传的文件ID
 
 // 切换视图
 function switchView(view) {
@@ -395,7 +396,8 @@ async function sendMessage() {
       },
       body: JSON.stringify({
         message: message,
-        session_token: token
+        session_token: token,
+        file_id: currentFileId  // 带上当前文件ID
       })
     });
     
@@ -443,8 +445,9 @@ async function handleFile(file) {
     const data = await res.json();
     
     if (data.file_id) {
+      currentFileId = data.file_id;  // 保存文件ID
       const bubble = addMessage('assistant', '', true);
-      await typeWriter(bubble, '文件已接收，正在分析内容...\n\n你可以问我：\n- "分析这个需求"\n- "生成测试用例"\n- "检查配置表"');
+      await typeWriter(bubble, '文件《' + data.filename + '》已接收并分析完成！\n\n你可以问我：\n- "分析这个需求"\n- "生成测试用例"\n- "检查配置表"\n\n或直接输入你的问题，我会结合文档内容回答。');
     }
   } catch (e) {
     hideThinking();

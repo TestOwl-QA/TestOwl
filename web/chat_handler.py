@@ -48,11 +48,19 @@ async def detect_intent(client, user_msg, history):
             return {"intent": "analyze_bug", "target": user_msg}
         return {"intent": "chat", "target": ""}
 
-async def handle_chat(req, get_api_key, get_config_with_key):
-    """智能对话"""
-    token = req.get("session_token")
+async def handle_chat(req, get_api_key, get_config_with_key, file_contents=None):
+    """处理聊天请求
+    
+    Args:
+        req: 请求数据
+        get_api_key: 获取API key的函数
+        get_config_with_key: 获取配置的函数
+        file_contents: 文件内容字典 {file_id: {filename, content, ...}}
+    """
     user_msg = req.get("message", "")
+    token = req.get("session_token", "")
     history = req.get("history", [])
+    file_id = req.get("file_id", "")  # 获取关联的文件ID
     key = get_api_key(token)
     
     if not key:
@@ -68,6 +76,25 @@ async def handle_chat(req, get_api_key, get_config_with_key):
         intent_data = await detect_intent(client, user_msg, history)
         intent = intent_data.get("intent", "chat")
         target = intent_data.get("target", "")
+        
+        # 检查是否是指代文件的内容（如"这个需求"、"该文件"等）
+        file_content = ""
+        if file_id and file_contents and file_id in file_contents:
+            file_info = file_contents[file_id]
+            file_content = file_info.get("content", "")
+            file_name = file_info.get("filename", "")
+        
+        # 如果用户说的是"这个需求"、"该文件"等指代词，且有上传的文件，使用文件内容
+        referential_words = ["这个需求", "该需求", "此需求", "这个文件", "该文件", "此文件", 
+                            "上传的文件", "刚才的文件", "文档", "该文档", "此文档"]
+        is_referring_to_file = any(word in user_msg for word in referential_words)
+        
+        if is_referring_to_file and file_content:
+            # 使用文件内容替代或补充目标
+            target = f"文件《{file_name}》的内容：\n{file_content[:3000]}"  # 限制长度
+        elif file_content and len(target) < 50:
+            # 如果目标很短，可能是指代文件，追加文件内容
+            target = f"{target}\n\n文件《{file_name}》的内容：\n{file_content[:3000]}"
         
         # 需求分析
         if intent == "analyze" and target:
