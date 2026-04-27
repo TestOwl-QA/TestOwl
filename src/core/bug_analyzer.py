@@ -456,7 +456,7 @@ class BugAnalyzer:
         if not report.get('has_error'):
             return "<p>未检测到错误信息</p>"
         
-        html = ["<h3>🔍 错误分析报告</h3>"]
+        html = ["<h3>[分析] 错误分析报告</h3>"]
         
         # 摘要
         html.append(f"<p><strong>{report['summary']}</strong></p>")
@@ -464,7 +464,7 @@ class BugAnalyzer:
         # 堆栈信息
         stack = report.get('stack_info', {})
         if stack:
-            html.append("<h4>📍 异常位置</h4>")
+            html.append("<h4>[位置] 异常位置</h4>")
             html.append(f"<p>类型：<code>{stack.get('exception_type', 'Unknown')}</code></p>")
             if stack.get('key_location'):
                 loc = stack['key_location']
@@ -474,11 +474,11 @@ class BugAnalyzer:
         # 匹配的模式
         patterns = report.get('matched_patterns', [])
         if patterns:
-            html.append("<h4>🎯 问题诊断</h4>")
+            html.append("<h4>[诊断] 问题诊断</h4>")
             for i, p in enumerate(patterns, 1):
-                severity_emoji = {'critical': '🔴', 'high': '🟠', 'medium': '🟡', 'low': '🟢'}.get(p['severity'], '⚪')
+                severity_text = {'critical': '[严重]', 'high': '[高危]', 'medium': '[中等]', 'low': '[低]'}.get(p['severity'], '[未知]')
                 html.append(f"<div style='margin:10px 0;padding:10px;background:#f5f5f5;border-radius:5px;'>")
-                html.append(f"<p>{severity_emoji} <strong>{p['name']}</strong> ({p['severity']})</p>")
+                html.append(f"<p>{severity_text} <strong>{p['name']}</strong> ({p['severity']})</p>")
                 html.append(f"<p>{p['description']}</p>")
                 
                 html.append("<p><strong>常见原因：</strong></p><ul>")

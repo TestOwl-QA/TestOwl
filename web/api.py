@@ -527,7 +527,7 @@ async def chat(req: dict):
                 
                 # 添加脱敏说明
                 if mask_records:
-                    html_report += f"<p style='color:#999;font-size:12px;margin-top:10px;'>🔒 已自动脱敏 {len(mask_records)} 处敏感信息</p>"
+                    html_report += f"<p style='color:#999;font-size:12px;margin-top:10px;'>[安全] 已自动脱敏 {len(mask_records)} 处敏感信息</p>"
                 
                 return {"success": True, "response": html_report}
             else:

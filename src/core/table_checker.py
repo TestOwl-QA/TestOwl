@@ -388,21 +388,21 @@ class TableChecker:
         # 健康度颜色
         health_color = '#4CAF50' if health >= 80 else '#FF9800' if health >= 60 else '#F44336'
         
-        html = [f"<h3>📊 配置表检查报告 - {report.get('table_name', '未命名')}</h3>"]
+        html = [f"<h3>[报表] 配置表检查报告 - {report.get('table_name', '未命名')}</h3>"]
         
         # 概览
         html.append(f"""
         <div style="padding:15px;background:{health_color}15;border-left:4px solid {health_color};margin:10px 0;">
             <p><strong>健康度评分：{health}/100</strong></p>
             <p>共检查 {report.get('row_count', 0)} 行 × {report.get('col_count', 0)} 列</p>
-            <p>🔴 错误: {summary.get('errors', 0)} | 🟠 警告: {summary.get('warnings', 0)} | 🔵 提示: {summary.get('infos', 0)}</p>
+            <p>[错误] {summary.get('errors', 0)} | [警告] {summary.get('warnings', 0)} | [提示] {summary.get('infos', 0)}</p>
         </div>
         """)
         
         # 错误列表
         errors = report.get('errors', [])
         if errors:
-            html.append("<h4>🔴 必须修复</h4><ul>")
+            html.append("<h4>[必须修复]</h4><ul>")
             for e in errors[:10]:  # 只显示前10个
                 html.append(f"<li><strong>{e['location']}</strong>: {e['message']}<br><small>建议：{e['suggestion']}</small></li>")
             if len(errors) > 10:
@@ -412,7 +412,7 @@ class TableChecker:
         # 警告列表
         warnings = report.get('warnings', [])
         if warnings:
-            html.append("<h4>🟠 建议修复</h4><ul>")
+            html.append("<h4>[建议修复]</h4><ul>")
             for w in warnings[:5]:
                 html.append(f"<li><strong>{w['location']}</strong>: {w['message']}</li>")
             if len(warnings) > 5:
@@ -421,7 +421,7 @@ class TableChecker:
         
         # 通过检查
         if not errors and not warnings:
-            html.append("<p style='color:#4CAF50;'>✅ 检查通过，未发现明显问题</p>")
+            html.append("<p style='color:#4CAF50;'>[通过] 检查通过，未发现明显问题</p>")
         
         return "\n".join(html)
 

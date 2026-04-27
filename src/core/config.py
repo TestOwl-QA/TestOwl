@@ -283,10 +283,10 @@ class Config:
         
         if missing:
             print("\n" + "=" * 60)
-            print("⚠️  配置不完整，缺少以下必要项:")
+            print("[!] 配置不完整，缺少以下必要项:")
             for item in missing:
                 print(f"   - {item}")
-            print("\n📖 快速修复指南:")
+            print("\n[指南] 快速修复指南:")
             print("   方式1 - 环境变量（推荐）:")
             print("      set LLM_API_KEY=你的API密钥")
             print("\n   方式2 - 配置文件:")
@@ -304,7 +304,7 @@ class Config:
         # API Key 相关错误
         if "api key" in error_msg or "authentication" in error_msg or "unauthorized" in error_msg:
             return """
-❌ API 密钥错误
+[错误] API 密钥错误
 
 可能原因:
 1. API 密钥未配置或配置错误
@@ -320,7 +320,7 @@ class Config:
         # 网络相关错误
         if "connection" in error_msg or "timeout" in error_msg or "network" in error_msg:
             return """
-❌ 网络连接错误
+[错误] 网络连接错误
 
 可能原因:
 1. 网络连接不稳定
@@ -336,7 +336,7 @@ class Config:
         # 文件相关错误
         if "file" in error_msg or "not found" in error_msg or "permission" in error_msg:
             return """
-❌ 文件操作错误
+[错误] 文件操作错误
 
 可能原因:
 1. 文件路径错误
@@ -351,7 +351,7 @@ class Config:
         
         # 默认错误提示
         return f"""
-❌ 发生错误: {error}
+[错误] 发生错误: {error}
 
 如果问题持续存在:
 1. 查看日志: logs/game_test_agent_*.log
