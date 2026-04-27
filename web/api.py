@@ -953,7 +953,7 @@ def parse_testcase_content(content: str) -> dict:
     return result
 
 
-def export_analysis_report(parsed: dict, fmt: str, timestamp: str) -> dict:
+def export_analysis_report(parsed: dict, fmt: str, date_str: str, filename_prefix: str = "需求分析") -> dict:
     """导出需求分析报告"""
     try:
         if fmt == "md":
@@ -977,7 +977,7 @@ def export_analysis_report(parsed: dict, fmt: str, timestamp: str) -> dict:
                 md_lines.append("")
             
             file_bytes = '\n'.join(md_lines).encode('utf-8')
-            filename = f"analysis_report_{timestamp}.md"
+            filename = f"{filename_prefix}_{date_str}.md"
         
         elif fmt == "pdf":
             from reportlab.lib.pagesizes import A4
@@ -1037,7 +1037,7 @@ def export_analysis_report(parsed: dict, fmt: str, timestamp: str) -> dict:
             
             doc.build(story)
             file_bytes = buffer.getvalue()
-            filename = f"analysis_report_{timestamp}.pdf"
+            filename = f"{filename_prefix}_{date_str}.pdf"
         
         elif fmt == "xlsx":
             from openpyxl import Workbook
@@ -1085,7 +1085,7 @@ def export_analysis_report(parsed: dict, fmt: str, timestamp: str) -> dict:
             buffer = BytesIO()
             wb.save(buffer)
             file_bytes = buffer.getvalue()
-            filename = f"analysis_report_{timestamp}.xlsx"
+            filename = f"{filename_prefix}_{date_str}.xlsx"
         
         elif fmt == "docx":
             from docx import Document
@@ -1135,7 +1135,7 @@ def export_analysis_report(parsed: dict, fmt: str, timestamp: str) -> dict:
             buffer = BytesIO()
             doc.save(buffer)
             file_bytes = buffer.getvalue()
-            filename = f"analysis_report_{timestamp}.docx"
+            filename = f"{filename_prefix}_{date_str}.docx"
         
         else:
             return {"success": False, "error": f"不支持的格式: {fmt}"}
@@ -1151,7 +1151,7 @@ def export_analysis_report(parsed: dict, fmt: str, timestamp: str) -> dict:
         return {"success": False, "error": f"导出失败: {str(e)}", "traceback": traceback.format_exc()}
 
 
-def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
+def export_testcase_report(parsed: dict, fmt: str, date_str: str, filename_prefix: str = "测试用例") -> dict:
     """导出测试用例报告"""
     try:
         if fmt == "md":
@@ -1168,7 +1168,7 @@ def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
                 md_lines.append("")
             
             file_bytes = '\n'.join(md_lines).encode('utf-8')
-            filename = f"testcase_report_{timestamp}.md"
+            filename = f"{filename_prefix}_{date_str}.md"
         
         elif fmt == "pdf":
             from reportlab.lib.pagesizes import A4
@@ -1208,7 +1208,7 @@ def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
             
             doc.build(story)
             file_bytes = buffer.getvalue()
-            filename = f"testcase_report_{timestamp}.pdf"
+            filename = f"{filename_prefix}_{date_str}.pdf"
         
         elif fmt == "xlsx":
             from openpyxl import Workbook
@@ -1315,7 +1315,7 @@ def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
             buffer = BytesIO()
             wb.save(buffer)
             file_bytes = buffer.getvalue()
-            filename = f"testcase_report_{timestamp}.xlsx"
+            filename = f"{filename_prefix}_{date_str}.xlsx"
         
         elif fmt == "docx":
             from docx import Document
@@ -1357,7 +1357,7 @@ def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
             buffer = BytesIO()
             doc.save(buffer)
             file_bytes = buffer.getvalue()
-            filename = f"testcase_report_{timestamp}.docx"
+            filename = f"{filename_prefix}_{date_str}.docx"
         
         else:
             return {"success": False, "error": f"不支持的格式: {fmt}"}
@@ -1388,16 +1388,95 @@ async def export_single(req: dict):
     
     fmt = req.get("format", "md")
     bubble_type = req.get("bubble_type", "analysis")
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # 使用当天日期，不包含时分秒
+    date_str = datetime.now().strftime("%Y%m%d")
     
-    # 根据气泡类型选择解析和导出方式
+    # 根据气泡类型选择解析和导出方式，并生成对应的文件名前缀
     if bubble_type == "testcase":
         parsed = parse_testcase_content(content)
-        return export_testcase_report(parsed, fmt, timestamp)
+        filename_prefix = _generate_testcase_filename_prefix(parsed)
+        return export_testcase_report(parsed, fmt, date_str, filename_prefix)
     else:
         # 默认需求分析
         parsed = parse_analysis_content(content)
-        return export_analysis_report(parsed, fmt, timestamp)
+        filename_prefix = _generate_analysis_filename_prefix(parsed)
+        return export_analysis_report(parsed, fmt, date_str, filename_prefix)
+
+
+def _generate_analysis_filename_prefix(parsed: dict) -> str:
+    """根据分析内容生成文件名前缀"""
+    # 优先使用标题
+    title = parsed.get("title", "")
+    if title and title != "需求分析报告":
+        # 清理标题，移除特殊字符，限制长度
+        return _sanitize_filename(title, 30)
+    
+    # 如果有测试点，使用第一个测试点的标题
+    test_points = parsed.get("test_points", [])
+    if test_points:
+        first_title = test_points[0].get("title", "")
+        if first_title:
+            return _sanitize_filename(first_title, 30)
+    
+    # 默认返回
+    return "需求分析"
+
+
+def _generate_testcase_filename_prefix(parsed: dict) -> str:
+    """根据测试用例内容生成文件名前缀"""
+    # 优先使用标题
+    title = parsed.get("title", "")
+    if title and title != "测试用例报告":
+        return _sanitize_filename(title, 30)
+    
+    # 如果有测试用例，使用第一个用例的标题
+    cases = parsed.get("cases", [])
+    if cases:
+        first_title = cases[0].get("title", "")
+        if first_title:
+            return _sanitize_filename(first_title, 30)
+    
+    # 默认返回
+    return "测试用例"
+
+
+def _sanitize_filename(text: str, max_length: int = 30) -> str:
+    """清理文本，生成安全的文件名
+    
+    Args:
+        text: 原始文本
+        max_length: 最大长度
+    
+    Returns:
+        清理后的文件名安全字符串
+    """
+    import re
+    
+    if not text:
+        return "导出报告"
+    
+    # 移除Markdown标记
+    text = re.sub(r'[#*_`~]', '', text)
+    
+    # 移除HTML标签
+    text = re.sub(r'<[^>]+>', '', text)
+    
+    # 替换文件名中的非法字符
+    # Windows非法字符: < > : " / \ | ? *
+    text = re.sub(r'[<>:"/\\|?*]', '', text)
+    
+    # 替换空白字符为下划线
+    text = re.sub(r'\s+', '_', text)
+    
+    # 移除前后空白和下划线
+    text = text.strip('_').strip()
+    
+    # 限制长度，避免文件名过长
+    if len(text) > max_length:
+        text = text[:max_length]
+    
+    # 如果清理后为空，返回默认值
+    return text if text else "导出报告"
 
 
 @app.post("/test/run")
