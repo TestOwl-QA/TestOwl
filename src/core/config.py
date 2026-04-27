@@ -270,32 +270,94 @@ class Config:
         return value
     
     def validate(self) -> bool:
-        """验证配置，自动修复常见问题"""
-        # 1. 自动创建配置文件（从模板复制）
-        if not Path(self._config_path).exists():
-            example = Path(self._config_path).parent / "config.yaml.example"
-            if example.exists():
-                import shutil
-                shutil.copy(example, self._config_path)
-                print(f"[Config] ✓ 已自动创建配置文件: {self._config_path}")
+        """验证配置是否完整（带友好提示）"""
+        missing = []
         
-        # 2. 检查API密钥（环境变量优先）
+        # 检查 API Key
         if not self.llm.api_key:
-            print("[Config] ⚠️  LLM API密钥未配置")
-            print("[Config]    修复方式（二选一）:")
-            print("[Config]    1. 设置环境变量: set LLM_API_KEY=your_key")
-            print("[Config]    2. 编辑配置文件: config/config.yaml -> llm.api_key")
-            print("[Config]    注意: 环境变量优先级高于配置文件，推荐用法")
-        else:
-            # 隐藏显示密钥，只显示前8位
-            masked = self.llm.api_key[:8] + "..." if len(self.llm.api_key) > 8 else "***"
-            source = "环境变量" if os.getenv("LLM_API_KEY") else "配置文件"
-            print(f"[Config] ✓ LLM API密钥已配置 ({source}: {masked})")
+            missing.append("LLM API密钥")
         
-        # 3. 确保输出目录存在
-        Path(self.storage.output_dir).mkdir(parents=True, exist_ok=True)
+        # 检查输出目录
+        if not self.storage.output_dir:
+            missing.append("输出目录")
+        
+        if missing:
+            print("\n" + "=" * 60)
+            print("⚠️  配置不完整，缺少以下必要项:")
+            for item in missing:
+                print(f"   - {item}")
+            print("\n📖 快速修复指南:")
+            print("   方式1 - 环境变量（推荐）:")
+            print("      set LLM_API_KEY=你的API密钥")
+            print("\n   方式2 - 配置文件:")
+            print(f"      编辑: {self._config_path}")
+            print("      在 llm 部分添加: api_key: 你的API密钥")
+            print("=" * 60 + "\n")
+            return False
         
         return True
+    
+    def get_friendly_error(self, error: Exception) -> str:
+        """将技术错误转换为友好的提示"""
+        error_msg = str(error).lower()
+        
+        # API Key 相关错误
+        if "api key" in error_msg or "authentication" in error_msg or "unauthorized" in error_msg:
+            return """
+❌ API 密钥错误
+
+可能原因:
+1. API 密钥未配置或配置错误
+2. API 密钥已过期
+3. API 密钥余额不足
+
+解决方法:
+1. 检查环境变量: echo %LLM_API_KEY%
+2. 检查配置文件: config/config.yaml
+3. 登录 Kimi/DeepSeek 官网确认密钥状态
+"""
+        
+        # 网络相关错误
+        if "connection" in error_msg or "timeout" in error_msg or "network" in error_msg:
+            return """
+❌ 网络连接错误
+
+可能原因:
+1. 网络连接不稳定
+2. 防火墙阻止了请求
+3. API 服务暂时不可用
+
+解决方法:
+1. 检查网络连接
+2. 尝试切换网络（如使用热点）
+3. 稍后重试
+"""
+        
+        # 文件相关错误
+        if "file" in error_msg or "not found" in error_msg or "permission" in error_msg:
+            return """
+❌ 文件操作错误
+
+可能原因:
+1. 文件路径错误
+2. 文件被其他程序占用
+3. 没有文件读写权限
+
+解决方法:
+1. 确认文件路径正确
+2. 关闭占用该文件的程序
+3. 检查文件夹权限
+"""
+        
+        # 默认错误提示
+        return f"""
+❌ 发生错误: {error}
+
+如果问题持续存在:
+1. 查看日志: logs/game_test_agent_*.log
+2. 检查配置: config/config.yaml
+3. 重新运行: python scripts/setup_project.py
+"""
     
     def get_config_info(self) -> Dict[str, Any]:
         """
