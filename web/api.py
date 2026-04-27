@@ -1,6 +1,15 @@
 import traceback
 from pathlib import Path
 
+# 导入增强模块
+try:
+    from src.core.data_masking import mask_for_bug_analysis, mask_for_table_check, DataMasker
+    from src.core.bug_analyzer import BugAnalyzer
+    from src.core.table_checker import TableChecker
+    ENHANCED_MODULES = True
+except ImportError:
+    ENHANCED_MODULES = False
+
 # 智能模型选择
 def get_model_for_task(task_type, text_len):
     """根据任务类型和复杂度选择模型"""
@@ -471,11 +480,134 @@ async def export_report(req: AnalyzeRequest):
         return {"success": False, "error": str(e)}
 
 
-from web.chat_handler import handle_chat
+from web.chat_handler import handle_chat, detect_intent
 
 @app.post("/chat")
 async def chat(req: dict):
-    return await handle_chat(req, get_api_key, get_config_with_key, file_contents)
+    """处理聊天请求，支持增强的报错分析和表检查"""
+    user_msg = req.get("message", "")
+    token = req.get("session_token", "")
+    file_id = req.get("file_id", "")
+    
+    key = get_api_key(token)
+    if not key:
+        return {"success": False, "error": "请先配置API Key"}
+    
+    try:
+        # 检测意图
+        config = get_config_with_key(key)
+        from src.adapters.llm.client import LLMClient
+        client = LLMClient(config)
+        
+        intent_data = await detect_intent(client, user_msg, [])
+        intent = intent_data.get("intent", "chat")
+        
+        # 报错分析 - 使用增强模块
+        if intent == "analyze_bug" and ENHANCED_MODULES:
+            # 检查是否有文件内容（错误日志）
+            error_text = ""
+            if file_id and file_id in file_contents:
+                error_text = file_contents[file_id].get("content", "")
+            else:
+                # 尝试从消息中提取
+                error_text = user_msg
+            
+            if error_text and len(error_text) > 10:
+                # 脱敏处理
+                masked_text, mask_records = mask_for_bug_analysis(error_text)
+                
+                # 使用增强分析器
+                analyzer = BugAnalyzer()
+                report = analyzer.analyze(masked_text)
+                html_report = analyzer.generate_html_report(report)
+                
+                # 添加脱敏说明
+                if mask_records:
+                    html_report += f"<p style='color:#999;font-size:12px;margin-top:10px;'>🔒 已自动脱敏 {len(mask_records)} 处敏感信息</p>"
+                
+                return {"success": True, "response": html_report}
+        
+        # 表检查 - 使用增强模块
+        elif intent == "check_table" and ENHANCED_MODULES:
+            # 检查是否有文件内容（表格数据）
+            if file_id and file_id in file_contents:
+                file_info = file_contents[file_id]
+                content = file_info.get("content", "")
+                filename = file_info.get("filename", "")
+                
+                # 尝试解析表格数据
+                table_data = parse_table_from_text(content)
+                
+                if table_data and table_data.get("rows"):
+                    # 脱敏处理
+                    for row in table_data.get("rows", []):
+                        for key, val in row.items():
+                            if isinstance(val, str):
+                                masked_val, _ = mask_for_table_check(val)
+                                row[key] = masked_val
+                    
+                    # 使用增强检查器
+                    checker = TableChecker()
+                    report = checker.check(table_data, filename)
+                    html_report = checker.generate_html_report(report)
+                    
+                    return {"success": True, "response": html_report}
+                else:
+                    return {"success": True, "response": "无法解析表格数据，请确保上传的是有效的Excel/CSV文件。"}
+        
+        # 默认使用原有的handle_chat
+        return await handle_chat(req, get_api_key, get_config_with_key, file_contents)
+    
+    except Exception as e:
+        # 出错时回退到原有处理
+        return await handle_chat(req, get_api_key, get_config_with_key, file_contents)
+
+
+def parse_table_from_text(text: str) -> dict:
+    """从文本中解析表格数据"""
+    if not text:
+        return None
+    
+    lines = text.strip().split('\n')
+    if len(lines) < 2:
+        return None
+    
+    # 尝试检测分隔符
+    # 1. 尝试制表符
+    if '\t' in lines[0]:
+        headers = lines[0].split('\t')
+        rows = []
+        for line in lines[1:]:
+            if line.strip():
+                values = line.split('\t')
+                row = {headers[i]: values[i] if i < len(values) else '' for i in range(len(headers))}
+                rows.append(row)
+        return {'headers': headers, 'rows': rows}
+    
+    # 2. 尝试逗号（CSV）
+    elif ',' in lines[0]:
+        headers = lines[0].split(',')
+        rows = []
+        for line in lines[1:]:
+            if line.strip():
+                values = line.split(',')
+                row = {headers[i]: values[i] if i < len(values) else '' for i in range(len(headers))}
+                rows.append(row)
+        return {'headers': headers, 'rows': rows}
+    
+    # 3. 尝试空格（对齐）
+    else:
+        # 简单处理：第一行是标题，后面是数据
+        headers = lines[0].split()
+        rows = []
+        for line in lines[1:]:
+            if line.strip():
+                values = line.split()
+                row = {}
+                for i, h in enumerate(headers):
+                    row[h] = values[i] if i < len(values) else ''
+                rows.append(row)
+        return {'headers': headers, 'rows': rows}
 
 @app.post("/export_chat")
 async def export_chat(req: dict):

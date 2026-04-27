@@ -9,6 +9,15 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 import sys
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# 导入增强模块
+try:
+    from src.core.data_masking import mask_for_bug_analysis, mask_for_table_check
+    from src.core.bug_analyzer import analyze_bug_html
+    from src.core.table_checker import check_table_html
+    ENHANCED_MODULES = True
+except ImportError:
+    ENHANCED_MODULES = False
+
 def fix_json_quotes(text):
     """修复JSON中的中文引号和其他格式问题"""
     # 替换中文引号为英文引号
