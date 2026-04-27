@@ -456,6 +456,8 @@ def parse_analysis_content(content: str) -> dict:
     1. HTML 格式（来自 chat_handler）
     2. 纯文本/Markdown 格式
     """
+    import re
+    
     result = {
         "title": "需求分析报告",
         "summary": "",
@@ -479,16 +481,16 @@ def parse_analysis_content(content: str) -> dict:
                 summary_lines.append("")
             continue
             
-        # 检测标题
-        if line.startswith('需求分析') or line.startswith('测试分析'):
-            result["title"] = line
+        # 检测标题（支持各种格式：# 需求分析、### 需求分析、需求分析等）
+        if re.match(r'^#*\s*需求分析', line) or re.match(r'^#*\s*测试分析', line):
+            result["title"] = re.sub(r'^#+\s*', '', line)  # 移除 Markdown 标记
             current_section = "summary"
-        elif line.startswith('测试点') or line.startswith('## 测试点'):
+        elif re.match(r'^#*\s*测试点', line):
             # 保存已收集的概述
             if summary_lines:
                 result["summary"] = '\n'.join(summary_lines).strip()
             current_section = "test_points"
-        elif line.startswith('风险') or line.startswith('## 风险'):
+        elif re.match(r'^#*\s*风险', line):
             # 保存已收集的概述
             if summary_lines and not result["summary"]:
                 result["summary"] = '\n'.join(summary_lines).strip()
