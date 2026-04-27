@@ -469,7 +469,7 @@ class BugAnalyzer:
             html.append("<details style='margin:8px 0;border:1px solid #e0e0e0;border-radius:4px;'>")
             html.append("<summary style='padding:8px 12px;background:#f5f5f5;cursor:pointer;font-weight:bold;'>异常位置</summary>")
             html.append("<div style='padding:12px;'>")
-            html.append(f"<p>异常类型：<code>{stack.get('exception_type', 'Unknown')}</code></p>
+            html.append(f"<p>异常类型：<code>{stack.get('exception_type', 'Unknown')}</code></p>")
             if stack.get('key_location'):
                 loc = stack['key_location']
                 html.append(f"<p>定位：<code>{loc['class']}.{loc['method']}</code></p>")
