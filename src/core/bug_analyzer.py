@@ -22,6 +22,61 @@ class BugAnalyzer:
     
     # 内置错误模式库
     ERROR_PATTERNS = [
+        # 系统/网络错误
+        ErrorPattern(
+            pattern=r'Errno 98.*address already in use|Address already in use',
+            name='端口被占用',
+            severity='high',
+            description='服务启动时端口已被其他进程占用',
+            common_causes=[
+                '上次服务未完全关闭，进程仍在后台运行',
+                '其他程序占用了该端口',
+                '服务异常退出导致端口未释放',
+                '快速重启服务，端口还在TIME_WAIT状态'
+            ],
+            suggested_fixes=[
+                '查找并结束占用端口的进程：lsof -ti:8081 | xargs kill -9',
+                '等待几秒让系统释放端口后重试',
+                '更换服务端口：--port 8082',
+                '使用pkill强制结束：pkill -9 -f "uvicorn"'
+            ]
+        ),
+        ErrorPattern(
+            pattern=r'Connection refused|ConnectionRefusedError',
+            name='连接被拒绝',
+            severity='high',
+            description='无法连接到目标服务',
+            common_causes=[
+                '目标服务未启动',
+                '防火墙阻止了连接',
+                '连接地址或端口错误',
+                '网络不通'
+            ],
+            suggested_fixes=[
+                '检查目标服务是否已启动',
+                '检查防火墙规则',
+                '验证连接地址和端口是否正确',
+                '使用ping/telnet测试网络连通性'
+            ]
+        ),
+        ErrorPattern(
+            pattern=r'Timeout|timed out|Read timed out',
+            name='连接超时',
+            severity='medium',
+            description='连接或请求超时',
+            common_causes=[
+                '网络延迟高',
+                '目标服务响应慢',
+                '请求处理时间过长',
+                '连接池耗尽'
+            ],
+            suggested_fixes=[
+                '增加超时时间设置',
+                '检查目标服务负载',
+                '优化请求处理逻辑',
+                '使用连接池管理'
+            ]
+        ),
         # Java 异常
         ErrorPattern(
             pattern=r'NullPointerException',

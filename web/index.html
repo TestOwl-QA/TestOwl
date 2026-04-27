@@ -444,6 +444,10 @@ async function sendMessage() {
   // 移除输入框中的文件提示（支持有换行和没换行的情况）
   message = message.replace(/^📎 [^\n]*\n?/, '').trim();
   
+  // 移除看起来像系统日志的内容（以ERROR:、INFO:等开头）
+  message = message.replace(/^(ERROR|INFO|WARN|DEBUG|CRITICAL):\s*.*$/gm, '').trim();
+  message = message.replace(/^[\s\n]*ERROR:\s*\[Errno.*$/s, '').trim();
+  
   // 如果消息为空，显示提示
   if (!message) {
     alert('请输入你的需求');
