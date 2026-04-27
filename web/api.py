@@ -1048,7 +1048,12 @@ async def export_single(req: dict):
     if not key:
         return {"success": False, "error": "未配置API Key"}
     
-    content = req.get("content", "")
+    # 优先使用 html_content（包含完整格式信息）
+    # 如果没有 html_content，则使用 content（纯文本）
+    html_content = req.get("html_content", "")
+    text_content = req.get("content", "")
+    content = html_content if html_content else text_content
+    
     fmt = req.get("format", "md")
     bubble_type = req.get("bubble_type", "analysis")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
