@@ -44,23 +44,74 @@
 └── config/               # 配置文件
 ```
 
+## 快速开始（新手推荐）
+
+### 第一步：环境检查
+```bash
+# 运行诊断工具，自动检查环境并给出修复建议
+python scripts/diagnose.py
+```
+
+### 第二步：配置 API 密钥
+```bash
+# 方式1：环境变量（推荐）
+set LLM_API_KEY=你的API密钥
+
+# 方式2：配置文件
+# 复制 config/config.yaml.example 为 config/config.yaml
+# 编辑 config.yaml，在 llm 部分添加 api_key: 你的API密钥
+```
+
+### 第三步：启动服务
+```bash
+# 启动 Web 界面（推荐）
+python web/api.py
+
+# 或启动 MCP 服务
+python mcp_server.py
+```
+
 ## 部署说明
 
 ### 环境要求
 - Python 3.10+
-- 依赖：`pip install fastapi uvicorn openpyxl python-docx reportlab`
+- 依赖：`pip install -r requirements.txt`
 
-### 启动服务
+### 详细部署步骤
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/TestOwl-QA/TestOwl.git
+cd TestOwl
+
+# 2. 安装依赖
+pip install -r requirements.txt
+
+# 3. 运行诊断检查
+python scripts/diagnose.py
+
+# 4. 配置 API 密钥（二选一）
+# 方式A - 环境变量
+set LLM_API_KEY=your_api_key_here
+# 方式B - 配置文件
+copy config\config.yaml.example config\config.yaml
+# 然后编辑 config.yaml 填入密钥
+
+# 5. 启动服务
+python web/api.py
+```
+
+### 启动服务（高级）
 
 ```bash
 # 启动 MCP 服务（8000 端口）
-python3 mcp_server.py
+python mcp_server.py
 
 # 启动 Web API（8081 端口）
-python3 -m uvicorn web.api:app --host 0.0.0.0 --port 8081
+python -m uvicorn web.api:app --host 0.0.0.0 --port 8081
 
 # 启动静态文件服务（8080 端口）
-python3 -m http.server 8080 --directory web/
+python -m http.server 8080 --directory web/
 ```
 
 ### Systemd 服务配置

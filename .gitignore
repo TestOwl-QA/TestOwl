@@ -1,15 +1,48 @@
-# ���������ļ� 
-config/config.yaml 
+# 配置文件（包含敏感信息）
+config/config.yaml
 .env
 
 # Python 缓存
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+.Python
 
 # 日志文件
 logs/
 *.log
-
-# 服务器日志
 server.log
+
+# 输出目录（生成的文件）
+output/
+uploads/*.docx
+uploads/*.pdf
+uploads/*.txt
+!uploads/.gitkeep
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 测试覆盖率
+.coverage
+htmlcov/
+.pytest_cache/
+
+# 构建产物
+build/
+dist/
+*.egg-info/
