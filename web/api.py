@@ -508,9 +508,13 @@ async def chat(req: dict):
             error_text = ""
             if file_id and file_id in file_contents:
                 error_text = file_contents[file_id].get("content", "")
-            else:
-                # 尝试从消息中提取
-                error_text = user_msg
+            
+            # 如果没有文件内容或内容太短，尝试从消息中提取
+            if not error_text or len(error_text) < 20:
+                # 清理消息中的指令性文字，保留可能的错误内容
+                cleaned_msg = re.sub(r'^(分析|查看|检查|帮忙|请|帮我)\s*', '', user_msg)
+                if len(cleaned_msg) > len(error_text):
+                    error_text = cleaned_msg
             
             if error_text and len(error_text) > 10:
                 # 脱敏处理
@@ -526,6 +530,9 @@ async def chat(req: dict):
                     html_report += f"<p style='color:#999;font-size:12px;margin-top:10px;'>🔒 已自动脱敏 {len(mask_records)} 处敏感信息</p>"
                 
                 return {"success": True, "response": html_report}
+            else:
+                # 没有足够的内容进行分析
+                return {"success": True, "response": "请提供报错日志或截图，我可以帮你分析错误原因。你可以直接粘贴错误信息或上传日志文件。"}
         
         # 表检查 - 使用增强模块
         elif intent == "check_table" and ENHANCED_MODULES:

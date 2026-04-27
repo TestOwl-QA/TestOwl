@@ -68,13 +68,16 @@ async def detect_intent(client, user_msg, history):
         return json.loads(clean)
     except (asyncio.TimeoutError, json.JSONDecodeError, Exception):
         # 降级：当AI解析失败时，使用关键词匹配
-        if "分析" in user_msg:
+        user_msg_lower = user_msg.lower()
+        if "报错" in user_msg or "错误" in user_msg or "exception" in user_msg_lower or "error" in user_msg_lower:
+            return {"intent": "analyze_bug", "target": user_msg}
+        elif "分析" in user_msg:
             return {"intent": "analyze", "target": user_msg.replace("分析", "").strip()}
-        elif "用例" in user_msg:
+        elif "用例" in user_msg or "测试用例" in user_msg:
             return {"intent": "generate", "target": user_msg.replace("生成用例", "").replace("写个", "").strip()}
-        elif "表" in user_msg or "配置" in user_msg:
+        elif "表" in user_msg or "配置" in user_msg or "excel" in user_msg_lower:
             return {"intent": "check_table", "target": "配置表"}
-        elif "报错" in user_msg or "崩溃" in user_msg or "bug" in user_msg.lower():
+        elif "崩溃" in user_msg or "crash" in user_msg_lower or "闪退" in user_msg:
             return {"intent": "analyze_bug", "target": user_msg}
         return {"intent": "chat", "target": ""}
 
