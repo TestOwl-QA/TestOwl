@@ -177,7 +177,12 @@ class MCPHandler:
             if text:
                 params["text"] = text
             elif content_base64:
-                params["file_path"] = file_path
+                # 解码 base64 内容并作为文本传入
+                try:
+                    decoded_text = base64.b64decode(content_base64).decode("utf-8")
+                    params["text"] = decoded_text
+                except Exception as e:
+                    return [TextContent(type="text", text=f"文件内容解码失败: {str(e)}")]
             else:
                 return [TextContent(type="text", text="错误：需要提供 text 或 content_base64")]
             

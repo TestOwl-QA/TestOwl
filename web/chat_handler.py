@@ -36,8 +36,8 @@ async def detect_intent(client, user_msg, history):
         if "```" in clean:
             clean = clean.split("```")[1].replace("json", "").strip()
         return json.loads(clean)
-    except:
-        # 降级
+    except (asyncio.TimeoutError, json.JSONDecodeError, Exception):
+        # 降级：当AI解析失败时，使用关键词匹配
         if "分析" in user_msg:
             return {"intent": "analyze", "target": user_msg.replace("分析", "").strip()}
         elif "用例" in user_msg:
@@ -97,7 +97,8 @@ async def handle_chat(req, get_api_key, get_config_with_key):
                         output += f"<li>{r}</li>"
                     output += "</ul>"
                 return {"success": True, "response": output}
-            except:
+            except (json.JSONDecodeError, Exception):
+                # JSON解析失败时直接返回原始结果
                 return {"success": True, "response": result}
         
         # 生成用例
@@ -124,7 +125,8 @@ async def handle_chat(req, get_api_key, get_config_with_key):
                         output += f"<li>{clean_step}</li>"
                     output += f"</ol><p><b>预期:</b>{c.get('expected','')}</p>"
                 return {"success": True, "response": output}
-            except:
+            except (json.JSONDecodeError, Exception):
+                # JSON解析失败时直接返回原始结果
                 return {"success": True, "response": result}
         
         # 表检查 - 自然引导

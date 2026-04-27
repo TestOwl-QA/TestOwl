@@ -300,7 +300,8 @@ class XmindExporter(StorageAdapter):
         if marker:
             try:
                 topic.addMarker(marker)
-            except:
+            except Exception:
+                # 标记添加失败时静默处理，不影响整体导出
                 pass
     
     async def export_test_points(

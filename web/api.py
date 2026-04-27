@@ -109,8 +109,10 @@ def parse_file(file_path: str, suffix: str) -> str:
             from PIL import Image
             img = Image.open(file_path)
             content = pytesseract.image_to_string(img, lang='chi_sim+eng')
-        except:
-            content = "[图片OCR失败]"
+        except ImportError:
+            content = "[OCR功能未安装，请安装: pip install pytesseract Pillow]"
+        except Exception as e:
+            content = f"[图片OCR失败: {str(e)}]"
     return content.strip()
 
 def fetch_url(url: str) -> str:
@@ -127,8 +129,10 @@ def fetch_url(url: str) -> str:
         text = soup.get_text(separator='\n', strip=True)
         lines = [l.strip() for l in text.split('\n') if l.strip()]
         return f"标题: {title}\n\n" + '\n'.join(lines)
+    except requests.RequestException as e:
+        raise RuntimeError(f"网络请求失败: {str(e)}")
     except Exception as e:
-        raise Exception(str(e))
+        raise RuntimeError(f"获取网页内容失败: {str(e)}")
 
 @app.post("/auth/save_key")
 async def save_key(req: SaveKeyRequest):
@@ -271,7 +275,7 @@ async def health():
                 try:
                     pdfmetrics.registerFont(TTFont('SimSun', '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc'))
                     font = 'SimSun'
-                except:
+                except Exception:
                     font = 'Helvetica'
                 buffer = BytesIO()
                 c = canvas.Canvas(buffer, pagesize=A4)
@@ -593,7 +597,7 @@ def export_analysis_report(parsed: dict, fmt: str, timestamp: str) -> dict:
                         pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
                         font_name = 'ChineseFont'
                         break
-                except:
+                except Exception:
                     continue
             
             buffer = BytesIO()
@@ -783,7 +787,7 @@ def export_testcase_report(parsed: dict, fmt: str, timestamp: str) -> dict:
                         pdfmetrics.registerFont(TTFont('ChineseFont', font_path))
                         font_name = 'ChineseFont'
                         break
-                except:
+                except Exception:
                     continue
             
             buffer = BytesIO()
