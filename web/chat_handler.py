@@ -77,24 +77,26 @@ async def handle_chat(req, get_api_key, get_config_with_key, file_contents=None)
         intent = intent_data.get("intent", "chat")
         target = intent_data.get("target", "")
         
-        # 检查是否是指代文件的内容（如"这个需求"、"该文件"等）
+        # 检查是否有上传的文件
         file_content = ""
+        file_name = ""
         if file_id and file_contents and file_id in file_contents:
             file_info = file_contents[file_id]
             file_content = file_info.get("content", "")
             file_name = file_info.get("filename", "")
         
-        # 如果用户说的是"这个需求"、"该文件"等指代词，且有上传的文件，使用文件内容
-        referential_words = ["这个需求", "该需求", "此需求", "这个文件", "该文件", "此文件", 
-                            "上传的文件", "刚才的文件", "文档", "该文档", "此文档"]
+        # 检查用户是否指代文件（如"这个需求"、"该文件"等）
+        referential_words = ["这个", "该", "此", "上传的", "刚才的", "文档", "文件", "需求"]
         is_referring_to_file = any(word in user_msg for word in referential_words)
         
-        if is_referring_to_file and file_content:
-            # 使用文件内容替代或补充目标
-            target = f"文件《{file_name}》的内容：\n{file_content[:3000]}"  # 限制长度
-        elif file_content and len(target) < 50:
-            # 如果目标很短，可能是指代文件，追加文件内容
-            target = f"{target}\n\n文件《{file_name}》的内容：\n{file_content[:3000]}"
+        # 如果有文件内容，且用户可能指代文件，将文件内容加入上下文
+        if file_content and (is_referring_to_file or len(target) < 50 or intent in ["analyze", "generate"]):
+            # 构建文件上下文
+            file_context = f"文件《{file_name}》的内容：\n{file_content[:4000]}"
+            if target:
+                target = f"{target}\n\n{file_context}"
+            else:
+                target = file_context
         
         # 需求分析
         if intent == "analyze" and target:

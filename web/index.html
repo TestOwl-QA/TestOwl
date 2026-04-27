@@ -441,8 +441,15 @@ async function sendMessage() {
     currentUploadFile = null;
   }
   
-  // 移除输入框中的文件提示
-  message = message.replace(/^📎 .+\n?/, '').trim();
+  // 移除输入框中的文件提示（支持有换行和没换行的情况）
+  message = message.replace(/^📎 [^\n]*\n?/, '').trim();
+  
+  // 如果消息为空，显示提示
+  if (!message) {
+    alert('请输入你的需求');
+    input.focus();
+    return;
+  }
   
   // 添加用户消息
   addMessage('user', message);
