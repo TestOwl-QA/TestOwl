@@ -408,14 +408,64 @@ import base64
 from datetime import datetime
 from io import BytesIO
 
+def html_to_text(html: str) -> str:
+    """将 HTML 转换为纯文本，保留结构信息"""
+    import re
+    
+    # 移除 script 和 style 标签及其内容
+    html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL | re.IGNORECASE)
+    
+    # 将标题标签转换为 Markdown 格式
+    html = re.sub(r'<h1[^>]*>(.*?)</h1>', r'# \1\n', html, flags=re.IGNORECASE)
+    html = re.sub(r'<h2[^>]*>(.*?)</h2>', r'## \1\n', html, flags=re.IGNORECASE)
+    html = re.sub(r'<h3[^>]*>(.*?)</h3>', r'### \1\n', html, flags=re.IGNORECASE)
+    html = re.sub(r'<h4[^>]*>(.*?)</h4>', r'#### \1\n', html, flags=re.IGNORECASE)
+    
+    # 将列表项转换为 Markdown 格式
+    html = re.sub(r'<li[^>]*>(.*?)</li>', r'- \1\n', html, flags=re.IGNORECASE)
+    
+    # 将段落转换为文本
+    html = re.sub(r'<p[^>]*>(.*?)</p>', r'\1\n\n', html, flags=re.IGNORECASE | re.DOTALL)
+    
+    # 将 <br> 转换为换行
+    html = re.sub(r'<br\s*/?>', '\n', html, flags=re.IGNORECASE)
+    
+    # 移除所有其他 HTML 标签
+    html = re.sub(r'<[^>]+>', '', html)
+    
+    # 解码 HTML 实体
+    import html as html_module
+    html = html_module.unescape(html)
+    
+    # 清理多余空白
+    lines = html.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        line = line.strip()
+        if line:
+            cleaned_lines.append(line)
+    
+    return '\n'.join(cleaned_lines)
+
+
 def parse_analysis_content(content: str) -> dict:
-    """解析需求分析内容，提取结构化数据"""
+    """解析需求分析内容，提取结构化数据
+    
+    支持两种输入格式：
+    1. HTML 格式（来自 chat_handler）
+    2. 纯文本/Markdown 格式
+    """
     result = {
         "title": "需求分析报告",
         "summary": "",
         "test_points": [],
         "risks": []
     }
+    
+    # 如果是 HTML，先提取文本内容
+    if content.strip().startswith('<') and '</' in content:
+        content = html_to_text(content)
     
     lines = content.split('\n')
     current_section = None
