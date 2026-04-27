@@ -90,7 +90,7 @@ Repository = "https://github.com/TestOwl-QA/TestOwl"
 
 [project.scripts]
 testowl = "src.core.agent:main"
-testowl-server = "mcp_server:main"
+testowl-server = "scripts.mcp_server:main"
 testowl-web = "web.api:main"
 
 [tool.setuptools.packages.find]
