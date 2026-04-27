@@ -452,44 +452,73 @@ class BugAnalyzer:
         return "；".join(parts) if parts else "发现潜在问题，建议查看详细分析"
     
     def generate_html_report(self, report: Dict) -> str:
-        """生成HTML格式的分析报告"""
+        """生成HTML格式的分析报告（可折叠章节样式）"""
         if not report.get('has_error'):
             return "<p>未检测到错误信息</p>"
         
-        html = ["<h3>[分析] 错误分析报告</h3>"]
+        html = []
         
-        # 摘要
-        html.append(f"<p><strong>{report['summary']}</strong></p>")
+        # 问题概述（始终展开）
+        html.append("<div style='margin-bottom:16px;'>")
+        html.append(f"<p style='font-weight:bold;margin-bottom:8px;'>我看到问题了！{report['summary']}</p>")
+        html.append("</div>")
         
-        # 堆栈信息
+        # 异常位置（可折叠）
         stack = report.get('stack_info', {})
-        if stack:
-            html.append("<h4>[位置] 异常位置</h4>")
-            html.append(f"<p>类型：<code>{stack.get('exception_type', 'Unknown')}</code></p>")
+        if stack and stack.get('exception_type') != 'Unknown':
+            html.append("<details style='margin:8px 0;border:1px solid #e0e0e0;border-radius:4px;'>")
+            html.append("<summary style='padding:8px 12px;background:#f5f5f5;cursor:pointer;font-weight:bold;'>异常位置</summary>")
+            html.append("<div style='padding:12px;'>")
+            html.append(f"<p>异常类型：<code>{stack.get('exception_type', 'Unknown')}</code></p>
             if stack.get('key_location'):
                 loc = stack['key_location']
-                html.append(f"<p>位置：<code>{loc['class']}.{loc['method']}</code><br>")
-                html.append(f"文件：{loc['file']}:{loc['line']}</p>")
+                html.append(f"<p>定位：<code>{loc['class']}.{loc['method']}</code></p>")
+                html.append(f"<p>文件：{loc['file']}:{loc['line']}</p>")
+            html.append("</div>")
+            html.append("</details>")
         
-        # 匹配的模式
+        # 问题诊断（可折叠）
         patterns = report.get('matched_patterns', [])
         if patterns:
-            html.append("<h4>[诊断] 问题诊断</h4>")
             for i, p in enumerate(patterns, 1):
-                severity_text = {'critical': '[严重]', 'high': '[高危]', 'medium': '[中等]', 'low': '[低]'}.get(p['severity'], '[未知]')
-                html.append(f"<div style='margin:10px 0;padding:10px;background:#f5f5f5;border-radius:5px;'>")
-                html.append(f"<p>{severity_text} <strong>{p['name']}</strong> ({p['severity']})</p>")
-                html.append(f"<p>{p['description']}</p>")
+                severity_class = {'critical': 'color:#d32f2f;', 'high': 'color:#f57c00;', 'medium': 'color:#f9a825;', 'low': 'color:#388e3c;'}.get(p['severity'], '')
                 
-                html.append("<p><strong>常见原因：</strong></p><ul>")
-                for cause in p['common_causes'][:3]:  # 只显示前3个
-                    html.append(f"<li>{cause}</li>")
-                html.append("</ul>")
+                html.append(f"<details style='margin:8px 0;border:1px solid #e0e0e0;border-radius:4px;'>")
+                html.append(f"<summary style='padding:8px 12px;background:#f5f5f5;cursor:pointer;font-weight:bold;{severity_class}'>{p['name']}</summary>")
+                html.append("<div style='padding:12px;'>")
+                html.append(f"<p style='color:#666;margin-bottom:12px;'>{p['description']}</p>")
                 
-                html.append("<p><strong>建议修复：</strong></p><ul>")
-                for fix in p['suggested_fixes'][:3]:
-                    html.append(f"<li>{fix}</li>")
-                html.append("</ul></div>")
+                # 常见原因
+                html.append("<p style='font-weight:bold;margin:8px 0 4px;'>可能原因：</p>")
+                html.append("<ol style='margin:0;padding-left:20px;'>")
+                for cause in p['common_causes']:
+                    html.append(f"<li style='margin:4px 0;'>{cause}</li>")
+                html.append("</ol>")
+                
+                # 修复建议
+                html.append("<p style='font-weight:bold;margin:12px 0 4px;'>建议修复：</p>")
+                html.append("<ol style='margin:0;padding-left:20px;'>")
+                for fix in p['suggested_fixes']:
+                    html.append(f"<li style='margin:4px 0;'>{fix}</li>")
+                html.append("</ol>")
+                
+                html.append("</div>")
+                html.append("</details>")
+        
+        # 如果没有匹配到模式
+        if not patterns:
+            html.append("<details style='margin:8px 0;border:1px solid #e0e0e0;border-radius:4px;' open>")
+            html.append("<summary style='padding:8px 12px;background:#f5f5f5;cursor:pointer;font-weight:bold;'>问题分析</summary>")
+            html.append("<div style='padding:12px;'>")
+            html.append("<p>未能识别到已知的错误模式。可能原因：</p>")
+            html.append("<ol style='margin:0;padding-left:20px;'>")
+            html.append("<li>错误信息不完整，缺少堆栈信息</li>")
+            html.append("<li>这是自定义异常，不在常见错误库中</li>")
+            html.append("<li>错误日志被截断或格式异常</li>")
+            html.append("</ol>")
+            html.append("<p style='margin-top:12px;'>建议：提供完整的错误日志，包括异常类型和堆栈信息。</p>")
+            html.append("</div>")
+            html.append("</details>")
         
         return "\n".join(html)
 
