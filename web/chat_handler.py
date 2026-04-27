@@ -18,6 +18,18 @@ def fix_json_quotes(text):
     text = re.sub(r',(\s*[}\]])', r'\1', text)
     return text
 
+def escape_html(text):
+    """转义HTML特殊字符"""
+    if not isinstance(text, str):
+        text = str(text)
+    return (text
+        .replace('&', '&amp;')
+        .replace('<', '&lt;')
+        .replace('>', '&gt;')
+        .replace('"', '&quot;')
+        .replace("'", '&#39;')
+    )
+
 async def detect_intent(client, user_msg, history):
     """自然对话中识别意图"""
     prompt = """从用户输入中识别意图。返回JSON:
@@ -123,18 +135,20 @@ async def handle_chat(req, get_api_key, get_config_with_key, file_contents=None)
                 clean = fix_json_quotes(clean)
                 data = json.loads(clean)
                 
-                output = f"<h3>需求分析</h3><p>{data.get('summary', '')}</p>"
+                output = f"<h3>需求分析</h3><p>{escape_html(data.get('summary', ''))}</p>"
                 points = data.get('test_points', [])
                 if points:
                     output += "<h4>测试点</h4><ul>"
                     for p in points:
-                        output += f"<li>[{p.get('pri','P2')}] {p.get('title','')} - {p.get('desc','')}</li>"
+                        title = escape_html(p.get('title',''))
+                        desc = escape_html(p.get('desc',''))
+                        output += f"<li>[{p.get('pri','P2')}] {title} - {desc}</li>"
                     output += "</ul>"
                 risks = data.get('risks', [])
                 if risks:
                     output += "<h4>风险</h4><ul>"
                     for r in risks:
-                        output += f"<li>{r}</li>"
+                        output += f"<li>{escape_html(r)}</li>"
                     output += "</ul>"
                 return {"success": True, "response": output}
             except (json.JSONDecodeError, Exception):
