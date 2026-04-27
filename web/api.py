@@ -510,9 +510,48 @@ async def chat(req: dict):
                 error_text = file_contents[file_id].get("content", "")
                 print(f"[DEBUG] Got file content, length: {len(error_text)}, preview: {error_text[:100]}")
             
-            # 检查是否是OCR失败的提示
+            # 检查是否是OCR失败的提示 - 对于OCR识别失败的情况，尝试使用LLM直接分析图片
             if error_text and ("[图片中未识别到文字" in error_text or "[OCR失败" in error_text or "[错误：" in error_text):
-                return {"success": True, "response": f"无法识别图片内容：{error_text}<br><br>建议直接粘贴错误日志文本，或确保截图清晰包含错误信息。"}
+                # OCR失败时，尝试使用多模态LLM分析图片
+                try:
+                    # 获取原始图片文件路径
+                    if file_id and file_id in file_contents:
+                        file_info = file_contents[file_id]
+                        original_path = file_info.get("path", "")
+                        
+                        if original_path and os.path.exists(original_path):
+                            # 使用LLM的多模态能力分析图片
+                            from src.adapters.llm.client import LLMClient
+                            client = LLMClient(config)
+                            
+                            # 读取图片并转为base64
+                            import base64
+                            with open(original_path, 'rb') as img_file:
+                                img_base64 = base64.b64encode(img_file.read()).decode('utf-8')
+                            
+                            # 构建多模态提示
+                            prompt = f"""请分析这张图片中的报错信息。图片是用户上传的报错截图。
+
+用户的问题：{user_msg}
+
+请：
+1. 识别图片中的错误信息、堆栈跟踪、错误代码等
+2. 分析错误原因
+3. 提供解决方案
+4. 如果是Python错误，说明错误类型和常见修复方法
+
+请用中文回答，格式清晰。"""
+
+                            # 调用多模态模型分析图片
+                            response = await client.chat_with_image(prompt, img_base64)
+                            
+                            if response and len(response) > 50:
+                                return {"success": True, "response": f"<div style='background:#f8f5f0;padding:15px;border-radius:8px;margin-bottom:15px;'><strong>🖼️ 图片分析结果</strong><br><small style='color:#999'>OCR未能识别文字，已使用视觉模型分析</small></div>{response}"}
+                except Exception as e:
+                    print(f"[DEBUG] 多模态分析失败: {e}")
+                
+                # 如果多模态分析也失败，返回友好提示
+                return {"success": True, "response": f"无法识别图片中的文字内容。<br><br>建议：<br>1. 直接粘贴错误日志文本<br>2. 确保截图清晰，文字可读<br>3. 如果是代码报错，可以复制粘贴错误信息"}
             
             # 如果没有文件内容或内容太短，尝试从消息中提取
             if not error_text or len(error_text) < 20:

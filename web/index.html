@@ -427,26 +427,26 @@ async function sendMessage() {
   const welcome = document.querySelector('.welcome');
   if (welcome) welcome.remove();
   
+  // 保存文件引用，因为doUploadFile会清空currentUploadFile
+  const fileToUpload = currentUploadFile;
+  
   // 如果有待上传的文件，先上传
-  if (currentUploadFile) {
+  if (fileToUpload) {
     showThinking();
     try {
-      await doUploadFile(currentUploadFile);
+      await doUploadFile(fileToUpload);
     } catch (e) {
       hideThinking();
       addMessage('assistant', '文件上传失败: ' + e.message);
       return;
     }
     hideThinking();
-    currentUploadFile = null;
   }
   
   // 移除输入框中的文件提示（支持有换行和没换行的情况）
   message = message.replace(/^📎 [^\n]*\n?/, '').trim();
   
-  // 移除看起来像系统日志的内容（以ERROR:、INFO:等开头）
-  message = message.replace(/^(ERROR|INFO|WARN|DEBUG|CRITICAL):\s*.*$/gm, '').trim();
-  message = message.replace(/^[\s\n]*ERROR:\s*\[Errno.*$/s, '').trim();
+  // 注意：不再过滤系统日志内容，用户可能想分析这些报错
   
   // 如果消息为空，显示提示
   if (!message) {
@@ -455,25 +455,30 @@ async function sendMessage() {
     return;
   }
   
-  // 如果有图片文件，显示图片预览
-  if (currentUploadFile && currentUploadFile.type.startsWith('image/')) {
-    const container = document.getElementById('chatMessages');
-    const div = document.createElement('div');
-    div.className = 'msg user';
+  // 如果有图片文件，显示图片预览（使用保存的引用）
+  let imageUrl = null;
+  if (fileToUpload && fileToUpload.type.startsWith('image/')) {
+    imageUrl = URL.createObjectURL(fileToUpload);
+  }
+  
+  // 添加用户消息（包含图片预览）
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  if (imageUrl) {
     div.innerHTML = `
       <div class="bubble">
         <div>${escapeHtml(message)}</div>
         <div style="margin-top:8px;">
-          <img src="${URL.createObjectURL(currentUploadFile)}" style="max-width:200px;max-height:150px;border-radius:4px;cursor:pointer;" onclick="window.open(this.src)">
+          <img src="${imageUrl}" style="max-width:280px;max-height:200px;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.1);" onclick="window.open(this.src)" title="点击放大查看">
         </div>
       </div>
     `;
-    container.appendChild(div);
-    container.scrollTo({top: container.scrollHeight, behavior: 'smooth'});
   } else {
-    // 添加普通用户消息
-    addMessage('user', message);
+    div.innerHTML = '<div class="bubble">' + escapeHtml(message) + '</div>';
   }
+  container.appendChild(div);
+  container.scrollTo({top: container.scrollHeight, behavior: 'smooth'});
   input.value = '';
   input.style.height = 'auto';
   
