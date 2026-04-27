@@ -9,6 +9,15 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 import sys
 sys.path.insert(0, str(PROJECT_ROOT))
 
+def fix_json_quotes(text):
+    """修复JSON中的中文引号和其他格式问题"""
+    # 替换中文引号为英文引号
+    text = text.replace('"', '"').replace('"', '"')  # 左右双引号
+    text = text.replace(''', "'").replace(''', "'")  # 左右单引号
+    # 修复可能的尾随逗号
+    text = re.sub(r',(\s*[}\]])', r'\1', text)
+    return text
+
 async def detect_intent(client, user_msg, history):
     """自然对话中识别意图"""
     prompt = """从用户输入中识别意图。返回JSON:
@@ -110,6 +119,8 @@ async def handle_chat(req, get_api_key, get_config_with_key, file_contents=None)
                 clean = result.strip()
                 if "```" in clean:
                     clean = clean.split("```")[1].replace("json", "").strip()
+                # 修复中文引号等格式问题
+                clean = fix_json_quotes(clean)
                 data = json.loads(clean)
                 
                 output = f"<h3>需求分析</h3><p>{data.get('summary', '')}</p>"
@@ -142,6 +153,8 @@ async def handle_chat(req, get_api_key, get_config_with_key, file_contents=None)
                 clean = result.strip()
                 if "```" in clean:
                     clean = clean.split("```")[1].replace("json", "").strip()
+                # 修复中文引号等格式问题
+                clean = fix_json_quotes(clean)
                 data = json.loads(clean)
                 
                 output = "<h3>测试用例</h3>"
