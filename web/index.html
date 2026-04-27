@@ -455,8 +455,25 @@ async function sendMessage() {
     return;
   }
   
-  // 添加用户消息
-  addMessage('user', message);
+  // 如果有图片文件，显示图片预览
+  if (currentUploadFile && currentUploadFile.type.startsWith('image/')) {
+    const container = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'msg user';
+    div.innerHTML = `
+      <div class="bubble">
+        <div>${escapeHtml(message)}</div>
+        <div style="margin-top:8px;">
+          <img src="${URL.createObjectURL(currentUploadFile)}" style="max-width:200px;max-height:150px;border-radius:4px;cursor:pointer;" onclick="window.open(this.src)">
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+    container.scrollTo({top: container.scrollHeight, behavior: 'smooth'});
+  } else {
+    // 添加普通用户消息
+    addMessage('user', message);
+  }
   input.value = '';
   input.style.height = 'auto';
   

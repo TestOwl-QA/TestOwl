@@ -508,6 +508,11 @@ async def chat(req: dict):
             error_text = ""
             if file_id and file_id in file_contents:
                 error_text = file_contents[file_id].get("content", "")
+                print(f"[DEBUG] Got file content, length: {len(error_text)}, preview: {error_text[:100]}")
+            
+            # 检查是否是OCR失败的提示
+            if error_text and ("[图片中未识别到文字" in error_text or "[OCR失败" in error_text or "[错误：" in error_text):
+                return {"success": True, "response": f"无法识别图片内容：{error_text}<br><br>建议直接粘贴错误日志文本，或确保截图清晰包含错误信息。"}
             
             # 如果没有文件内容或内容太短，尝试从消息中提取
             if not error_text or len(error_text) < 20:
