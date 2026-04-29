@@ -446,7 +446,13 @@ async function sendMessage() {
   if (fileToUpload) {
     showThinking();
     try {
-      await doUploadFile(fileToUpload);
+      const uploadResult = await doUploadFile(fileToUpload);
+      if (!uploadResult.success) {
+        hideThinking();
+        addMessage('assistant', '文件上传失败: ' + (uploadResult.error || '未知错误'));
+        return;
+      }
+      console.log('[文件上传成功]', uploadResult.filename, 'file_id:', currentFileId);
     } catch (e) {
       hideThinking();
       addMessage('assistant', '文件上传失败: ' + e.message);
@@ -575,6 +581,10 @@ async function doUploadFile(file) {
   const data = await res.json();
   if (data.file_id) {
     currentFileId = data.file_id;
+    console.log('[上传成功] file_id:', currentFileId);
+  } else {
+    console.error('[上传失败]', data.error || '未知错误');
+    throw new Error(data.error || '文件上传失败');
   }
   return data;
 }

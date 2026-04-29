@@ -94,6 +94,12 @@ async def handle_chat(req, get_api_key, get_config_with_key, file_contents=None)
     token = req.get("session_token", "")
     history = req.get("history", [])
     file_id = req.get("file_id", "")  # 获取关联的文件ID
+
+    # 调试日志
+    print(f"[DEBUG] Chat请求: file_id={file_id}, file_contents数量={len(file_contents) if file_contents else 0}")
+    if file_id and file_contents:
+        print(f"[DEBUG] file_id在file_contents中: {file_id in file_contents}")
+
     key = get_api_key(token)
     
     if not key:
