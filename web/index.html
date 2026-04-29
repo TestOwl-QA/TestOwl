@@ -479,6 +479,13 @@ async function sendMessage() {
     imageUrl = URL.createObjectURL(fileToUpload);
   }
   
+  // 构建显示的消息内容（包含文件名）
+  let displayMessage = message;
+  if (fileToUpload && !imageUrl) {
+    // 非图片文件，显示文件名
+    displayMessage = '📎 ' + fileToUpload.name + '\n' + message;
+  }
+  
   // 添加用户消息（包含图片预览）
   const container = document.getElementById('chatMessages');
   const div = document.createElement('div');
@@ -493,7 +500,7 @@ async function sendMessage() {
       </div>
     `;
   } else {
-    div.innerHTML = '<div class="bubble">' + escapeHtml(message) + '</div>';
+    div.innerHTML = '<div class="bubble">' + escapeHtml(displayMessage).replace(/\n/g, '<br>') + '</div>';
   }
   container.appendChild(div);
   container.scrollTo({top: container.scrollHeight, behavior: 'smooth'});
