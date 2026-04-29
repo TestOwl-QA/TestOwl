@@ -213,13 +213,27 @@ async def handle_chat(req, get_api_key, get_config_with_key, file_contents=None)
         
         # 普通对话 - 自然交流
         else:
-            context = "\n".join([f"{m.get('role')}: {m.get('content')}" for m in history[-3:]])
-            prompt = f"""简洁自然地回复用户。你是测试领域的专业人士，但不要强调身份，直接说事。
+            # 构建对话上下文，保留更多历史记录
+            context_messages = []
+            for m in history[-10:]:  # 保留最近10轮对话
+                role = m.get('role', '')
+                content = m.get('content', '')
+                if role and content:
+                    context_messages.append(f"{'用户' if role == 'user' else 'AI'}: {content}")
 
-对话:
+            context = "\n".join(context_messages)
+
+            prompt = f"""你是TestOwl测试助手，一个专业的游戏测试专家。请根据对话上下文回答用户问题。
+
+重要：你必须记住对话历史，回答要与上下文相关。
+
+对话历史:
 {context}
-用户: {user_msg}"""
-            
+
+当前用户问题: {user_msg}
+
+请直接回答用户问题，保持简洁专业。如果用户问的是之前提到过的内容，请基于历史对话回答。"""
+
             result = await asyncio.wait_for(client.complete(prompt), timeout=60)
             return {"success": True, "response": result}
     

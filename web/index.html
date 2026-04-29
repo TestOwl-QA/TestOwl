@@ -251,6 +251,7 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;backgr
 const API = window.location.hostname === 'localhost' ? 'http://localhost:8081' : 'http://121.41.36.197:8081';
 let isTyping = false;
 let currentFileId = null;  // 存储当前上传的文件ID
+let chatHistory = [];  // 对话历史记录
 
 // 切换视图
 function switchView(view) {
@@ -296,19 +297,28 @@ function addMessage(role, content, isTyping = false) {
   const div = document.createElement('div');
   div.className = 'msg ' + role;
   const msgId = 'msg-' + Date.now();
-  
+
   if (role === 'assistant') {
     div.innerHTML = '<div class="ai-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 2 5 5 5 9c0 2 1 4 2 5l-2 5 5-2c1 1 2 1 2 1 4 0 7-3 7-7s-3-7-7-7z"/><circle cx="9" cy="9" r="1.5" fill="currentColor"/><circle cx="15" cy="9" r="1.5" fill="currentColor"/><path d="M12 13c-1.5 0-2.5.5-3 1.5"/><path d="M12 13c1.5 0 2.5.5 3 1.5"/></svg></div><div class="bubble" id="' + msgId + '"><div class="bubble-export" onclick="showExportMenu(event, \'' + msgId + '\')" title="导出报告"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg></div><div class="bubble-content"></div></div>';
   } else {
     div.innerHTML = '<div class="bubble">' + escapeHtml(content) + '</div>';
   }
-  
+
   container.appendChild(div);
   // 使用 requestAnimationFrame 确保 DOM 更新后再滚动
   requestAnimationFrame(() => {
     container.scrollTo({top: container.scrollHeight, behavior: 'smooth'});
   });
-  
+
+  // 保存到历史记录
+  if (!isTyping) {
+    chatHistory.push({role: role, content: content});
+    // 限制历史记录长度，保留最近20轮
+    if (chatHistory.length > 40) {
+      chatHistory = chatHistory.slice(-40);
+    }
+  }
+
   if (isTyping && role === 'assistant') {
     return div.querySelector('.bubble');
   }
@@ -377,6 +387,8 @@ async function typeWriter(element, text, speed = 30) {
         isTyping = false;
         // 最终格式化
         contentElement.innerHTML = formatText(text);
+        // 保存AI回复到历史
+        chatHistory.push({role: 'assistant', content: text});
         // 检查是否需要添加收缩按钮
         const bubble = element.closest('.bubble');
         if (bubble) {
@@ -500,7 +512,8 @@ async function sendMessage() {
       body: JSON.stringify({
         message: message,
         session_token: token,
-        file_id: currentFileId  // 带上当前文件ID
+        file_id: currentFileId,  // 带上当前文件ID
+        history: chatHistory     // 带上对话历史
       })
     });
     
