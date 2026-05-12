@@ -14,7 +14,6 @@ from src.core.token_optimizer import TokenOptimizer
 from src.skills.base import BaseSkill, SkillContext, SkillResult
 from src.skills.document_analyzer.models import AnalysisResult, TestPoint, Priority
 from src.adapters.document.parser import DocumentParser
-from src.adapters.llm.client import LLMClient
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -26,7 +25,6 @@ class DocumentAnalyzerSkill(BaseSkill):
     def __init__(self, config: Config):
         super().__init__(config)
         self.document_parser = DocumentParser(config)
-        self.llm_client = LLMClient(config)
         
         # 初始化Token优化器
         self.token_optimizer = TokenOptimizer(config={
@@ -208,7 +206,7 @@ class DocumentAnalyzerSkill(BaseSkill):
 请直接输出JSON。"""
         
         try:
-            response = await self.llm_client.complete(prompt)
+            response = await self._get_llm_client().complete(prompt)
             json_str = self._extract_json(response)
             return json.loads(json_str)
         except Exception as e:

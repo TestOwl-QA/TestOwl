@@ -146,12 +146,12 @@ class MCPHandler:
                 config.llm.api_key = self.user_api_key
             
             self.agent = GameTestAgent(config)
-            # 注册所有技能
-            self.agent.register_skill("document_analyzer", DocumentAnalyzerSkill())
-            self.agent.register_skill("test_case_generator", TestCaseGeneratorSkill())
-            self.agent.register_skill("bug_tracker", BugTrackerSkill())
-            self.agent.register_skill("table_checker", TableCheckerSkill())
-            self.agent.register_skill("db_checker", DBCheckerSkill())
+            # 注册所有技能（使用 register_skill_class 确保 config 正确传入）
+            self.agent.register_skill_class("document_analyzer", DocumentAnalyzerSkill)
+            self.agent.register_skill_class("test_case_generator", TestCaseGeneratorSkill)
+            self.agent.register_skill_class("bug_tracker", BugTrackerSkill)
+            self.agent.register_skill_class("table_checker", TableCheckerSkill)
+            self.agent.register_skill_class("db_checker", DBCheckerSkill)
         
         try:
             if name == "analyze_document":

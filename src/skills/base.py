@@ -126,6 +126,13 @@ class BaseSkill(ABC):
     async def cleanup(self):
         """清理资源（子类可重写）"""
         pass
+
+    def _get_llm_client(self):
+        """延迟获取 LLM 客户端（在首次调用时初始化，确保 API Key 已配置）"""
+        if not hasattr(self, '_llm_client') or self._llm_client is None or self._llm_client.client is None:
+            from src.adapters.llm.client import LLMClient
+            self._llm_client = LLMClient(self.config)
+        return self._llm_client
     
     def validate_params(self, context: SkillContext) -> Optional[str]:
         """验证参数"""

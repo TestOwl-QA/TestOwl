@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional
 from src.core.config import Config
 from src.skills.base import BaseSkill, SkillContext, SkillResult
 from src.skills.bug_tracker.models import BugReport, BugAnalysis, BugSeverity, BugPriority
-from src.adapters.llm.client import LLMClient
 from src.adapters.platform import (
     PlatformBug, 
     get_platform_adapter
@@ -49,7 +48,6 @@ class BugTrackerSkill(BaseSkill):
     
     def __init__(self, config: Config):
         super().__init__(config)
-        self.llm_client = LLMClient(config)
     
     @property
     def name(self) -> str:
@@ -199,7 +197,7 @@ class BugTrackerSkill(BaseSkill):
         prompt = self._build_analysis_prompt(bug_report)
         
         try:
-            response = await self.llm_client.complete(prompt)
+            response = await self._get_llm_client().complete(prompt)
             
             # 解析LLM响应
             analysis_data = self._parse_llm_response(response)

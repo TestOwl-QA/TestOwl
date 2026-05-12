@@ -17,7 +17,6 @@ from src.core.config import Config
 from src.skills.base import BaseSkill, SkillContext, SkillResult
 from src.skills.test_case_generator.models import TestCase, TestSuite, TestStep, TestCaseType
 from src.skills.document_analyzer.models import AnalysisResult, TestPoint
-from src.adapters.llm.client import LLMClient
 from src.adapters.storage.excel_exporter import ExcelExporter
 from src.utils.logger import get_logger
 
@@ -47,7 +46,6 @@ class TestCaseGeneratorSkill(BaseSkill):
     
     def __init__(self, config: Config):
         super().__init__(config)
-        self.llm_client = LLMClient(config)
         self.excel_exporter = ExcelExporter(config)
     
     @property
@@ -163,8 +161,8 @@ class TestCaseGeneratorSkill(BaseSkill):
   ]
 }}"""
 
-        response = await self.llm_client.complete(prompt)
-        
+        response = await self._get_llm_client().complete(prompt)
+
         try:
             data = json.loads(self._extract_json(response))
             return [
@@ -246,8 +244,8 @@ class TestCaseGeneratorSkill(BaseSkill):
 3. 覆盖正常流程和异常流程
 4. 如果有边界条件，单独作为步骤"""
 
-        response = await self.llm_client.complete(prompt)
-        
+        response = await self._get_llm_client().complete(prompt)
+
         try:
             data = json.loads(self._extract_json(response))
             
