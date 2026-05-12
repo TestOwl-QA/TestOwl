@@ -77,7 +77,6 @@ class MCPHandler:
                             "content_base64": {"type": "string", "description": "文档内容的base64编码"},
                             "output_format": {"type": "string", "enum": ["excel", "json", "markdown"], "default": "excel"},
                         },
-                        "required": ["text"],
                     },
                 ),
                 Tool(
