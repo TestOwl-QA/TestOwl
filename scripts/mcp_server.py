@@ -128,6 +128,16 @@ class MCPHandler:
                         "required": ["filename", "content_base64"],
                     },
                 ),
+                Tool(
+                    name="echo",
+                    description="回显输入内容，用于连通性测试",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "text": {"type": "string", "description": "要回显的文本"},
+                        },
+                    },
+                ),
             ]
         
         @self.server.call_tool()
@@ -242,7 +252,11 @@ class MCPHandler:
                 
                 file_path = await self._save_uploaded_file(filename, content_base64)
                 return [TextContent(type="text", text=f"文件上传成功: {file_path}")]
-            
+
+            elif name == "echo":
+                text = arguments.get("text", "")
+                return [TextContent(type="text", text=text)]
+
             else:
                 return [TextContent(type="text", text=f"未知工具: {name}")]
         
