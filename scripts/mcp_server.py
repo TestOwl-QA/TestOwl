@@ -331,76 +331,92 @@ class MCPHandler:
         """运行 SSE 模式（同步方法，内部处理异步）"""
         from mcp.server.sse import SseServerTransport
         from starlette.applications import Starlette
-        from starlette.routing import Route, Mount
+        from starlette.routing import Mount
         from starlette.responses import JSONResponse
         from starlette.middleware import Middleware
         from starlette.middleware.cors import CORSMiddleware
+        from urllib.parse import parse_qs
         import uvicorn
-        
+        import json
+
         sse = SseServerTransport("/messages/")
-        
-        async def handle_sse(request):
-            """处理 SSE 连接"""
-            # 支持通过 header 或 query 参数传递 API Key
-            api_key = request.headers.get("X-API-Key", "")
-            if not api_key:
-                api_key = request.query_params.get("api_key", "")
-            
-            if api_key:
-                self.user_api_key = api_key
-                logger.info("使用用户提供的 API Key")
-            
-            async with sse.connect_sse(
-                request.scope, request.receive, request._send
-            ) as (read_stream, write_stream):
-                await self.server.run(
-                    read_stream,
-                    write_stream,
-                    self.server.create_initialization_options(),
-                )
-        
-        async def handle_messages(request):
-            """处理 POST 消息"""
-            return await sse.handle_post_message(request.scope, request.receive, request._send)
-        
-        # 健康检查端点
-        async def health_check(request):
-            return JSONResponse({"status": "ok", "service": "testowl-mcp"})
-        
-        # API Key 验证端点
-        async def validate_key(request):
-            """验证 API Key 是否有效"""
-            try:
-                data = await request.json()
-                api_key = data.get("api_key", "")
-                
+
+        async def mcp_asgi(scope, receive, send):
+            """统一的 MCP ASGI 入口，手动路由所有端点"""
+            if scope["type"] != "http":
+                return
+
+            path = scope["path"]
+            method = scope["method"]
+
+            # 健康检查
+            if path == "/health":
+                response = JSONResponse({"status": "ok", "service": "testowl-mcp"})
+                await response(scope, receive, send)
+                return
+
+            # API Key 验证
+            if path == "/validate-key" and method == "POST":
+                body = b""
+                more_body = True
+                while more_body:
+                    msg = await receive()
+                    body += msg.get("body", b"")
+                    more_body = msg.get("more_body", False)
+                try:
+                    data = json.loads(body)
+                    api_key = data.get("api_key", "")
+                    if not api_key:
+                        resp = JSONResponse({"valid": False, "error": "未提供 API Key"})
+                    elif len(api_key) < 10:
+                        resp = JSONResponse({"valid": False, "error": "API Key 格式不正确"})
+                    else:
+                        resp = JSONResponse({"valid": True, "message": "API Key 格式正确"})
+                except Exception as e:
+                    resp = JSONResponse({"valid": False, "error": str(e)})
+                await resp(scope, receive, send)
+                return
+
+            # POST 消息
+            if path.startswith("/messages") and method == "POST":
+                await sse.handle_post_message(scope, receive, send)
+                return
+
+            # SSE 连接
+            if path == "/sse":
+                api_key = ""
+                for name, value in scope.get("headers", []):
+                    if name == b"x-api-key":
+                        api_key = value.decode()
+                        break
                 if not api_key:
-                    return JSONResponse({"valid": False, "error": "未提供 API Key"})
-                
-                # 简单验证：尝试初始化配置
-                config = Config()
-                config.llm.api_key = api_key
-                
-                # 可以尝试发起一个简单的请求来验证
-                # 这里简化处理，只检查格式
-                if len(api_key) < 10:
-                    return JSONResponse({"valid": False, "error": "API Key 格式不正确"})
-                
-                return JSONResponse({"valid": True, "message": "API Key 格式正确"})
-            except Exception as e:
-                return JSONResponse({"valid": False, "error": str(e)})
-        
+                    query = scope.get("query_string", b"").decode()
+                    params = parse_qs(query)
+                    api_key = params.get("api_key", [""])[0]
+                if api_key:
+                    self.user_api_key = api_key
+                    logger.info("使用用户提供的 API Key")
+
+                async with sse.connect_sse(scope, receive, send) as (read_stream, write_stream):
+                    await self.server.run(
+                        read_stream,
+                        write_stream,
+                        self.server.create_initialization_options(),
+                    )
+                return
+
+            # 404
+            response = JSONResponse({"error": "Not found"}, status_code=404)
+            await response(scope, receive, send)
+
         middleware = [
             Middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]),
         ]
-        
+
         routes = [
-            Route("/sse", endpoint=handle_sse),
-            Route("/messages/", endpoint=handle_messages, methods=["POST"]),
-            Route("/health", endpoint=health_check),
-            Route("/validate-key", endpoint=validate_key, methods=["POST"]),
+            Mount("/", app=mcp_asgi),
         ]
-        
+
         app = Starlette(debug=True, routes=routes, middleware=middleware)
         
         print(f"🚀 MCP SSE 服务器启动于 http://{host}:{port}")
