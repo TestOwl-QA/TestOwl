@@ -414,10 +414,10 @@ class TableCheckerSkill(BaseSkill):
         check_context = context.get_param("context", {})
         
         if not data:
-            return SkillResult.error("没有数据需要检查")
-        
+            return SkillResult.fail("没有数据需要检查")
+
         if not rules_data:
-            return SkillResult.error("没有指定检查规则")
+            return SkillResult.fail("没有指定检查规则")
         
         logger.info(f"Checking {len(data)} rows with {len(rules_data)} rules")
         

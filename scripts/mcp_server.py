@@ -13,6 +13,7 @@ import sys
 import argparse
 import base64
 import asyncio
+import json
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
@@ -178,7 +179,11 @@ class MCPHandler:
                     return [TextContent(type="text", text="错误：需要提供 text 或 content_base64")]
                 
                 result = await self.agent.execute("document_analyzer", {"text": text})
-                return [TextContent(type="text", text=result.data.get("analysis", "分析完成"))]
+                if not result.success:
+                    return [TextContent(type="text", text=f"分析失败: {result.error}")]
+                return [TextContent(type="text", text=json.dumps(
+                    result.data.to_dict() if hasattr(result.data, 'to_dict') else result.data,
+                    ensure_ascii=False, indent=2))]
             
             elif name == "generate_test_cases":
                 text = arguments.get("text", "")
@@ -199,7 +204,11 @@ class MCPHandler:
                     return [TextContent(type="text", text="错误：需要提供 text 或 content_base64")]
                 
                 result = await self.agent.execute("test_case_generator", params)
-                return [TextContent(type="text", text=result.data.get("report", "用例生成完成"))]
+                if not result.success:
+                    return [TextContent(type="text", text=f"生成用例失败: {result.error}")]
+                return [TextContent(type="text", text=json.dumps(
+                    result.data.to_dict() if hasattr(result.data, 'to_dict') else result.data,
+                    ensure_ascii=False, indent=2))]
             
             elif name == "check_table":
                 file_path = arguments.get("file_path", "")
@@ -212,26 +221,39 @@ class MCPHandler:
                 if not file_path:
                     return [TextContent(type="text", text="错误：需要提供 file_path 或 content_base64")]
                 
+                # 读取文件并解析为表格数据
+                table_data = await self._read_file_as_table(file_path)
+                if not table_data:
+                    return [TextContent(type="text", text="错误：无法解析文件中的表格数据")]
+
                 result = await self.agent.execute("table_checker", {
-                    "file_path": file_path,
+                    "data": table_data,
                     "rules": rules,
                 })
-                return [TextContent(type="text", text=result.data.get("report", "检查完成"))]
+                if not result.success:
+                    return [TextContent(type="text", text=f"表检查失败: {result.error}")]
+                return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
             
             elif name == "track_bug":
                 bug_description = arguments.get("bug_description", "")
                 screenshot_base64 = arguments.get("screenshot_base64", "")
-                context = arguments.get("context", "")
-                
-                params = {"bug_description": bug_description}
+                ctx = arguments.get("context", "")
+
+                params = {
+                    "title": bug_description[:100] if bug_description else "未知Bug",
+                    "description": bug_description,
+                }
+                if isinstance(ctx, dict):
+                    params["expected_result"] = ctx.get("expected_result", "")
+                    params["actual_result"] = ctx.get("actual_result", "")
                 if screenshot_base64:
                     screenshot_path = await self._save_uploaded_file("screenshot.png", screenshot_base64)
                     params["screenshot_path"] = str(screenshot_path)
-                if context:
-                    params["context"] = context
-                
+
                 result = await self.agent.execute("bug_tracker", params)
-                return [TextContent(type="text", text=result.data.get("analysis", "分析完成"))]
+                if not result.success:
+                    return [TextContent(type="text", text=f"Bug分析失败: {result.error}")]
+                return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
             
             elif name == "check_database":
                 connection_string = arguments.get("connection_string", "")
@@ -241,7 +263,9 @@ class MCPHandler:
                     "connection_string": connection_string,
                     "checks": checks,
                 })
-                return [TextContent(type="text", text=result.data.get("report", "数据库检查完成"))]
+                if not result.success:
+                    return [TextContent(type="text", text=f"数据库检查失败: {result.error}")]
+                return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
             
             elif name == "upload_file":
                 filename = arguments.get("filename", "")
@@ -329,7 +353,37 @@ class MCPHandler:
                     return f.read()
             except:
                 return f"[不支持的文件格式: {suffix}]"
-    
+
+    async def _read_file_as_table(self, file_path: Path) -> list:
+        """读取文件并解析为表格数据（行列表）"""
+        suffix = file_path.suffix.lower()
+        rows = []
+
+        try:
+            if suffix in [".xlsx", ".xls"]:
+                import pandas as pd
+                df = pd.read_excel(file_path)
+                rows = df.to_dict(orient="records")
+            elif suffix == ".csv":
+                import pandas as pd
+                df = pd.read_csv(file_path)
+                rows = df.to_dict(orient="records")
+            else:
+                # 尝试作为文本解析
+                with open(file_path, "r", encoding="utf-8") as f:
+                    lines = [l.strip() for l in f if l.strip()]
+                if lines:
+                    # 假设第一行是表头，逗号或制表符分隔
+                    delimiter = "\t" if "\t" in lines[0] else ","
+                    headers = lines[0].split(delimiter)
+                    for line in lines[1:]:
+                        values = line.split(delimiter)
+                        rows.append({headers[i]: values[i] if i < len(values) else "" for i in range(len(headers))})
+        except Exception as e:
+            logger.error(f"表格解析失败: {e}")
+
+        return rows
+
     async def run_stdio(self):
         """运行 STDIO 模式"""
         from mcp.server.stdio import stdio_server
