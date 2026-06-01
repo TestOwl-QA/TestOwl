@@ -1,11 +1,8 @@
 """MCP 服务器 - 支持 STDIO 和 SSE 两种模式
 
 使用方法:
-    # STDIO 模式（默认，用于 Claude Desktop 等本地客户端）
-    python scripts/mcp_server.py
-    
-    # SSE 模式（用于远程连接，支持文件上传和 API Key 验证）
-    python scripts/mcp_server.py --sse
+    python scripts/mcp_server.py                  # STDIO 模式
+    python scripts/mcp_server.py --sse            # SSE 模式
     python scripts/mcp_server.py --sse --host 0.0.0.0 --port 8000
 """
 import os
@@ -14,6 +11,7 @@ import argparse
 import base64
 import asyncio
 import json
+import subprocess
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
@@ -29,374 +27,438 @@ from mcp.server import Server
 from mcp.types import Tool, TextContent
 from src.core.config import Config
 from src.core.agent import GameTestAgent
-from src.skills.document_analyzer import DocumentAnalyzerSkill
 from src.skills.test_case_generator import TestCaseGeneratorSkill
 from src.skills.bug_tracker import BugTrackerSkill
 from src.skills.table_checker import TableCheckerSkill
 from src.skills.db_checker import DBCheckerSkill
+from src.skills.knowledge_search import KnowledgeSearchSkill
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# ==================== 核心 MCP 逻辑 ====================
 
 class MCPHandler:
-    """MCP 请求处理器"""
-    
+    """MCP 请求处理器 — 6 个游戏测试专用工具"""
+
     def __init__(self):
         self.agent: GameTestAgent = None
         self.server = Server("testowl")
         self.user_api_key: Optional[str] = None
         self._setup_tools()
-    
+
     def _setup_tools(self):
-        """设置 MCP 工具"""
-        
+        """设置 MCP 工具（6个精简工具）"""
+
         @self.server.list_tools()
         async def list_tools() -> List[Tool]:
-            """列出可用工具"""
             return [
                 Tool(
-                    name="analyze_document",
-                    description="分析测试需求文档，提取测试要点和风险点",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "text": {"type": "string", "description": "需求文本内容"},
-                            "content_base64": {"type": "string", "description": "文档内容的base64编码"},
-                            "filename": {"type": "string", "description": "文件名（用于判断格式）"},
-                        },
-                    },
-                ),
-                Tool(
                     name="generate_test_cases",
-                    description="根据需求生成测试用例",
+                    description="根据需求文本直接生成测试用例（分析+生成一步完成）",
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "text": {"type": "string", "description": "需求描述"},
-                            "content_base64": {"type": "string", "description": "文档内容的base64编码"},
-                            "output_format": {"type": "string", "enum": ["excel", "json", "markdown"], "default": "excel"},
+                            "text": {
+                                "type": "string",
+                                "description": "需求文档/策划案文本，支持直接粘贴",
+                            },
+                            "output_format": {
+                                "type": "string",
+                                "enum": ["json", "markdown"],
+                                "default": "json",
+                                "description": "输出格式",
+                            },
                         },
+                        "required": ["text"],
                     },
                 ),
                 Tool(
                     name="check_table",
-                    description="检查游戏配置表（Excel/CSV）",
+                    description="检查游戏配置表（Excel/CSV），支持物品/技能/关卡/商城预设规则",
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "file_path": {"type": "string", "description": "配置表文件路径"},
-                            "content_base64": {"type": "string", "description": "配置表内容的base64编码"},
-                            "rules": {"type": "array", "items": {"type": "string"}, "description": "要应用的检查规则"},
+                            "content_base64": {
+                                "type": "string",
+                                "description": "Excel/CSV 文件的 base64 编码",
+                            },
+                            "filename": {
+                                "type": "string",
+                                "description": "文件名（用于判断格式 .xlsx/.csv）",
+                            },
+                            "preset": {
+                                "type": "string",
+                                "enum": ["generic", "item", "skill", "level", "shop"],
+                                "default": "generic",
+                                "description": "预设规则集",
+                            },
+                            "custom_rules": {
+                                "type": "array",
+                                "items": {"type": "object"},
+                                "description": "自定义规则（可选）",
+                            },
                         },
+                        "required": ["content_base64", "filename"],
                     },
                 ),
                 Tool(
-                    name="track_bug",
-                    description="分析Bug并提供修复建议",
+                    name="analyze_bug",
+                    description="分析Bug描述，自动提取复现步骤、分析根因、给出修复建议",
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "bug_description": {"type": "string", "description": "Bug描述"},
-                            "screenshot_base64": {"type": "string", "description": "截图的base64编码（可选）"},
-                            "context": {"type": "string", "description": "额外上下文信息（可选）"},
+                            "description": {
+                                "type": "string",
+                                "description": "Bug 描述",
+                            },
+                            "expected": {
+                                "type": "string",
+                                "description": "期望行为（可选）",
+                            },
+                            "actual": {
+                                "type": "string",
+                                "description": "实际行为（可选）",
+                            },
                         },
-                        "required": ["bug_description"],
+                        "required": ["description"],
                     },
                 ),
                 Tool(
                     name="check_database",
-                    description="检查数据库配置和数据一致性",
+                    description="检查数据库结构、数据一致性和业务规则",
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "connection_string": {"type": "string", "description": "数据库连接字符串"},
-                            "checks": {"type": "array", "items": {"type": "string"}, "description": "要执行的检查类型"},
+                            "connection_string": {
+                                "type": "string",
+                                "description": "数据库连接字符串，如 mysql://user:pass@host:3306/db",
+                            },
+                            "checks": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "检查类型：connection/structure/data/rules",
+                            },
                         },
                         "required": ["connection_string"],
                     },
                 ),
                 Tool(
-                    name="upload_file",
-                    description="上传文件到服务器（用于后续分析）",
+                    name="search_knowledge",
+                    description="搜索游戏测试知识库（配置表/接口/性能/白盒等8类文档）",
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "filename": {"type": "string", "description": "文件名"},
-                            "content_base64": {"type": "string", "description": "文件内容的base64编码"},
+                            "query": {
+                                "type": "string",
+                                "description": "搜索关键词",
+                            },
+                            "top_k": {
+                                "type": "integer",
+                                "default": 3,
+                                "description": "返回条数",
+                            },
                         },
-                        "required": ["filename", "content_base64"],
+                        "required": ["query"],
                     },
                 ),
                 Tool(
-                    name="echo",
-                    description="回显输入内容，用于连通性测试",
+                    name="health",
+                    description="检查服务健康状态（MCP/LLM/Web/版本）",
                     inputSchema={
                         "type": "object",
-                        "properties": {
-                            "text": {"type": "string", "description": "要回显的文本"},
-                        },
+                        "properties": {},
                     },
                 ),
             ]
-        
+
         @self.server.call_tool()
         async def call_tool(name: str, arguments: dict) -> List[TextContent]:
-            """调用工具"""
             return await self._handle_tool_call(name, arguments)
-    
+
     async def _handle_tool_call(self, name: str, arguments: dict) -> List[TextContent]:
-        """处理工具调用"""
-        # 延迟初始化 Agent（确保使用最新的 API Key）
+        """统一工具路由"""
         if self.agent is None:
-            config = Config()
-            # 如果用户提供了 API Key，覆盖配置
-            if self.user_api_key:
-                config.llm.api_key = self.user_api_key
-            
-            self.agent = GameTestAgent(config)
-            # 注册所有技能（使用 register_skill_class 确保 config 正确传入）
-            self.agent.register_skill_class("document_analyzer", DocumentAnalyzerSkill)
-            self.agent.register_skill_class("test_case_generator", TestCaseGeneratorSkill)
-            self.agent.register_skill_class("bug_tracker", BugTrackerSkill)
-            self.agent.register_skill_class("table_checker", TableCheckerSkill)
-            self.agent.register_skill_class("db_checker", DBCheckerSkill)
-        
+            self._init_agent()
+
         try:
-            if name == "analyze_document":
-                text = arguments.get("text", "")
-                content_base64 = arguments.get("content_base64", "")
-                filename = arguments.get("filename", "document.txt")
-                
-                # 如果有base64内容，解码并保存
-                if content_base64:
-                    file_path = await self._save_uploaded_file(filename, content_base64)
-                    # 读取文件内容
-                    text = await self._read_file_content(file_path)
-                
-                if not text:
-                    return [TextContent(type="text", text="错误：需要提供 text 或 content_base64")]
-                
-                result = await self.agent.execute("document_analyzer", {"text": text})
-                if not result.success:
-                    return [TextContent(type="text", text=f"分析失败: {result.error}")]
-                return [TextContent(type="text", text=json.dumps(
-                    result.data.to_dict() if hasattr(result.data, 'to_dict') else result.data,
-                    ensure_ascii=False, indent=2))]
-            
-            elif name == "generate_test_cases":
-                text = arguments.get("text", "")
-                content_base64 = arguments.get("content_base64", "")
-                output_format = arguments.get("output_format", "excel")
-                
-                params = {"output_format": output_format}
-                if text:
-                    params["text"] = text
-                elif content_base64:
-                    # 解码 base64 内容并作为文本传入
-                    try:
-                        decoded_text = base64.b64decode(content_base64).decode("utf-8")
-                        params["text"] = decoded_text
-                    except Exception as e:
-                        return [TextContent(type="text", text=f"文件内容解码失败: {str(e)}")]
-                else:
-                    return [TextContent(type="text", text="错误：需要提供 text 或 content_base64")]
-                
-                result = await self.agent.execute("test_case_generator", params)
-                if not result.success:
-                    return [TextContent(type="text", text=f"生成用例失败: {result.error}")]
-                return [TextContent(type="text", text=json.dumps(
-                    result.data.to_dict() if hasattr(result.data, 'to_dict') else result.data,
-                    ensure_ascii=False, indent=2))]
-            
+            if name == "generate_test_cases":
+                return await self._tool_generate_test_cases(arguments)
             elif name == "check_table":
-                file_path = arguments.get("file_path", "")
-                content_base64 = arguments.get("content_base64", "")
-                rules = arguments.get("rules", [])
-                
-                if content_base64:
-                    file_path = await self._save_uploaded_file("table.xlsx", content_base64)
-                
-                if not file_path:
-                    return [TextContent(type="text", text="错误：需要提供 file_path 或 content_base64")]
-                
-                # 读取文件并解析为表格数据
-                table_data = await self._read_file_as_table(file_path)
-                if not table_data:
-                    return [TextContent(type="text", text="错误：无法解析文件中的表格数据")]
-
-                result = await self.agent.execute("table_checker", {
-                    "data": table_data,
-                    "rules": rules,
-                })
-                if not result.success:
-                    return [TextContent(type="text", text=f"表检查失败: {result.error}")]
-                return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
-            
-            elif name == "track_bug":
-                bug_description = arguments.get("bug_description", "")
-                screenshot_base64 = arguments.get("screenshot_base64", "")
-                ctx = arguments.get("context", "")
-
-                params = {
-                    "title": bug_description[:100] if bug_description else "未知Bug",
-                    "description": bug_description,
-                }
-                if isinstance(ctx, dict):
-                    params["expected_result"] = ctx.get("expected_result", "")
-                    params["actual_result"] = ctx.get("actual_result", "")
-                if screenshot_base64:
-                    screenshot_path = await self._save_uploaded_file("screenshot.png", screenshot_base64)
-                    params["screenshot_path"] = str(screenshot_path)
-
-                result = await self.agent.execute("bug_tracker", params)
-                if not result.success:
-                    return [TextContent(type="text", text=f"Bug分析失败: {result.error}")]
-                return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
-            
+                return await self._tool_check_table(arguments)
+            elif name == "analyze_bug":
+                return await self._tool_analyze_bug(arguments)
             elif name == "check_database":
-                connection_string = arguments.get("connection_string", "")
-                checks = arguments.get("checks", [])
-                
-                result = await self.agent.execute("db_checker", {
-                    "connection_string": connection_string,
-                    "checks": checks,
-                })
-                if not result.success:
-                    return [TextContent(type="text", text=f"数据库检查失败: {result.error}")]
-                return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
-            
-            elif name == "upload_file":
-                filename = arguments.get("filename", "")
-                content_base64 = arguments.get("content_base64", "")
-                
-                if not filename or not content_base64:
-                    return [TextContent(type="text", text="错误：需要提供 filename 和 content_base64")]
-                
-                file_path = await self._save_uploaded_file(filename, content_base64)
-                return [TextContent(type="text", text=f"文件上传成功: {file_path}")]
-
-            elif name == "echo":
-                text = arguments.get("text", "")
-                return [TextContent(type="text", text=text)]
-
+                return await self._tool_check_database(arguments)
+            elif name == "search_knowledge":
+                return await self._tool_search_knowledge(arguments)
+            elif name == "health":
+                return await self._tool_health()
             else:
                 return [TextContent(type="text", text=f"未知工具: {name}")]
-        
         except Exception as e:
-            logger.error(f"工具调用失败: {e}", exc_info=True)
+            logger.error(f"工具调用失败 [{name}]: {e}", exc_info=True)
             return [TextContent(type="text", text=f"错误: {str(e)}")]
-    
+
+    def _init_agent(self):
+        """延迟初始化 Agent"""
+        config = Config()
+        if self.user_api_key:
+            config.llm.api_key = self.user_api_key
+        self.agent = GameTestAgent(config)
+        self.agent.register_skill_class("test_case_generator", TestCaseGeneratorSkill)
+        self.agent.register_skill_class("bug_tracker", BugTrackerSkill)
+        self.agent.register_skill_class("table_checker", TableCheckerSkill)
+        self.agent.register_skill_class("db_checker", DBCheckerSkill)
+        self.agent.register_skill_class("knowledge_search", KnowledgeSearchSkill)
+
+    # ── 各工具实现 ─────────────────────────────────────────────
+
+    async def _tool_generate_test_cases(self, args: dict) -> List[TextContent]:
+        text = args.get("text", "").strip()
+        output_format = args.get("output_format", "json")
+
+        if not text:
+            return [TextContent(type="text", text="错误：请提供需求文本")]
+
+        # 直接传 requirements_text（匹配 skill 接口）
+        result = await self.agent.execute("test_case_generator", {
+            "requirements_text": text,
+            "output_format": output_format,
+        })
+        if not result.success:
+            return [TextContent(type="text", text=f"生成用例失败: {result.error}")]
+        data = result.data.to_dict() if hasattr(result.data, "to_dict") else result.data
+        return [TextContent(type="text", text=json.dumps(data, ensure_ascii=False, indent=2))]
+
+    async def _tool_check_table(self, args: dict) -> List[TextContent]:
+        content_base64 = args.get("content_base64", "")
+        filename = args.get("filename", "table.xlsx")
+        preset = args.get("preset", "generic")
+        custom_rules = args.get("custom_rules", [])
+
+        if not content_base64:
+            return [TextContent(type="text", text="错误：请提供配置表文件的 base64 编码")]
+
+        # 保存文件并解析为表格数据
+        file_path = await self._save_uploaded_file(filename, content_base64)
+        table_data = await self._read_file_as_table(str(file_path))
+        if not table_data:
+            return [TextContent(type="text", text="错误：无法解析表格数据，请确认文件为 Excel 或 CSV 格式")]
+
+        # 构建规则：预设规则 + 自定义规则
+        rules = self._get_table_rules(preset) + list(custom_rules)
+        if not rules:
+            rules = self._get_table_rules("generic")
+
+        result = await self.agent.execute("table_checker", {
+            "data": table_data,
+            "rules": rules,
+        })
+        if not result.success:
+            return [TextContent(type="text", text=f"表检查失败: {result.error}")]
+        return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
+
+    async def _tool_analyze_bug(self, args: dict) -> List[TextContent]:
+        description = args.get("description", "").strip()
+        expected = args.get("expected", "").strip()
+        actual = args.get("actual", "").strip()
+
+        if not description:
+            return [TextContent(type="text", text="错误：请提供 Bug 描述")]
+
+        params = {
+            "title": description[:100],
+            "description": description,
+        }
+        if expected:
+            params["expected_result"] = expected
+        if actual:
+            params["actual_result"] = actual
+
+        result = await self.agent.execute("bug_tracker", params)
+        if not result.success:
+            return [TextContent(type="text", text=f"Bug 分析失败: {result.error}")]
+        return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
+
+    async def _tool_check_database(self, args: dict) -> List[TextContent]:
+        connection_string = args.get("connection_string", "")
+        checks = args.get("checks", [])
+
+        if not connection_string:
+            return [TextContent(type="text", text="错误：请提供数据库连接字符串")]
+
+        result = await self.agent.execute("db_checker", {
+            "connection_string": connection_string,
+            "checks": checks,
+        })
+        if not result.success:
+            return [TextContent(type="text", text=f"数据库检查失败: {result.error}")]
+        return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
+
+    async def _tool_search_knowledge(self, args: dict) -> List[TextContent]:
+        query = args.get("query", "").strip()
+        top_k = args.get("top_k", 3)
+
+        if not query:
+            return [TextContent(type="text", text="错误：请提供搜索关键词")]
+
+        result = await self.agent.execute("knowledge_search", {
+            "query": query,
+            "top_k": top_k,
+        })
+        if not result.success:
+            return [TextContent(type="text", text=f"知识库搜索失败: {result.error}")]
+        return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
+
+    async def _tool_health(self) -> List[TextContent]:
+        """健康检查 — 不依赖 Agent，直接检查各组件"""
+        status = {
+            "service": "testowl-mcp",
+            "mcp_server": "ok",
+            "llm_api": "unknown",
+            "web_api": "unknown",
+            "git_version": "unknown",
+            "uptime": "unknown",
+        }
+
+        # LLM 连通性
+        try:
+            config = Config()
+            from src.adapters.llm.client import LLMClient
+            client = LLMClient(config)
+            if client.client:
+                status["llm_api"] = f"ok (provider={config.llm.provider}, model={config.llm.model})"
+            else:
+                status["llm_api"] = "no_api_key"
+        except Exception as e:
+            status["llm_api"] = f"error: {str(e)[:80]}"
+
+        # Web API 状态
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=3) as hc:
+                resp = await hc.get("http://127.0.0.1:8081/health")
+                status["web_api"] = "ok" if resp.status_code == 200 else f"status={resp.status_code}"
+        except Exception as e:
+            status["web_api"] = f"error: {str(e)[:80]}"
+
+        # Git 版本
+        try:
+            r = subprocess.run(
+                ["git", "log", "--oneline", "-1"],
+                capture_output=True, text=True,
+                cwd=str(PROJECT_ROOT), timeout=5,
+            )
+            status["git_version"] = r.stdout.strip() if r.returncode == 0 else "unknown"
+        except Exception:
+            status["git_version"] = "unknown"
+
+        # 运行时间
+        try:
+            r = subprocess.run(
+                ["systemctl", "show", "testowl", "--property=ActiveEnterTimestamp"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if r.returncode == 0:
+                status["uptime"] = r.stdout.strip().replace("ActiveEnterTimestamp=", "")
+        except Exception:
+            status["uptime"] = "unknown"
+
+        return [TextContent(type="text", text=json.dumps(status, ensure_ascii=False, indent=2))]
+
+    # ── 配置表预设规则 ─────────────────────────────────────────
+
+    def _get_table_rules(self, preset: str) -> list:
+        """获取预设检查规则"""
+        rules = []
+
+        if preset == "item":
+            rules = [
+                {"name": "物品ID唯一性", "rule_type": "unique", "column": "item_id", "severity": "error"},
+                {"name": "物品名称非空", "rule_type": "not_null", "column": "item_name", "severity": "error"},
+                {"name": "价格非负", "rule_type": "range", "column": "price", "params": {"min": 0}, "severity": "error"},
+                {"name": "稀有度枚举", "rule_type": "enum", "column": "rarity", "params": {"values": ["N", "R", "SR", "SSR", "UR"]}, "severity": "warning"},
+                {"name": "类型引用", "rule_type": "reference", "column": "type_id", "params": {"reference_table": "item_type"}, "severity": "error"},
+            ]
+        elif preset == "skill":
+            rules = [
+                {"name": "技能ID唯一性", "rule_type": "unique", "column": "skill_id", "severity": "error"},
+                {"name": "技能名称非空", "rule_type": "not_null", "column": "skill_name", "severity": "error"},
+                {"name": "冷却时间非负", "rule_type": "range", "column": "cooldown", "params": {"min": 0}, "severity": "warning"},
+                {"name": "技能等级范围", "rule_type": "range", "column": "level", "params": {"min": 1, "max": 100}, "severity": "warning"},
+            ]
+        elif preset == "level":
+            rules = [
+                {"name": "关卡ID唯一性", "rule_type": "unique", "column": "level_id", "severity": "error"},
+                {"name": "关卡名称非空", "rule_type": "not_null", "column": "level_name", "severity": "error"},
+                {"name": "解锁等级合理", "rule_type": "range", "column": "unlock_level", "params": {"min": 1, "max": 100}, "severity": "warning"},
+                {"name": "星级枚举", "rule_type": "enum", "column": "stars", "params": {"values": [1, 2, 3]}, "severity": "warning"},
+            ]
+        elif preset == "shop":
+            rules = [
+                {"name": "商品ID唯一性", "rule_type": "unique", "column": "goods_id", "severity": "error"},
+                {"name": "商品名称非空", "rule_type": "not_null", "column": "goods_name", "severity": "error"},
+                {"name": "货币类型枚举", "rule_type": "enum", "column": "currency", "params": {"values": ["gold", "diamond", "rmb"]}, "severity": "error"},
+                {"name": "价格非负", "rule_type": "range", "column": "price", "params": {"min": 0}, "severity": "error"},
+                {"name": "库存非负", "rule_type": "range", "column": "stock", "params": {"min": 0}, "severity": "warning"},
+            ]
+        else:
+            # generic
+            pass
+
+        return rules
+
+    # ── 文件处理 ───────────────────────────────────────────────
+
     async def _save_uploaded_file(self, filename: str, content_base64: str) -> Path:
-        """保存上传的文件"""
-        # 生成唯一文件名
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_filename = f"{timestamp}_{filename}"
         file_path = UPLOAD_DIR / safe_filename
-        
-        # 解码并保存
         content = base64.b64decode(content_base64)
         with open(file_path, "wb") as f:
             f.write(content)
-        
         return file_path
-    
-    async def _read_file_content(self, file_path: Path) -> str:
-        """读取文件内容"""
-        # 根据文件类型选择读取方式
-        suffix = file_path.suffix.lower()
-        
-        if suffix == ".txt":
-            with open(file_path, "r", encoding="utf-8") as f:
-                return f.read()
-        
-        elif suffix in [".docx", ".doc"]:
-            try:
-                from docx import Document
-                doc = Document(file_path)
-                return "\n".join([para.text for para in doc.paragraphs])
-            except Exception as e:
-                return f"[文档解析失败: {e}]"
-        
-        elif suffix == ".pdf":
-            try:
-                from PyPDF2 import PdfReader
-                reader = PdfReader(file_path)
-                return "\n".join([page.extract_text() for page in reader.pages])
-            except Exception as e:
-                return f"[PDF解析失败: {e}]"
-        
-        elif suffix in [".xlsx", ".xls"]:
-            try:
-                import pandas as pd
-                df = pd.read_excel(file_path)
-                return df.to_string()
-            except Exception as e:
-                return f"[Excel解析失败: {e}]"
-        
-        elif suffix in [".png", ".jpg", ".jpeg", ".bmp", ".gif"]:
-            try:
-                import pytesseract
-                from PIL import Image
-                img = Image.open(file_path)
-                return pytesseract.image_to_string(img, lang='chi_sim+eng')
-            except ImportError:
-                return "[OCR功能未安装，请安装: pip install pytesseract Pillow]"
-            except Exception as e:
-                return f"[图片OCR失败: {str(e)}]"
-        
-        else:
-            # 尝试作为文本读取
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    return f.read()
-            except:
-                return f"[不支持的文件格式: {suffix}]"
 
-    async def _read_file_as_table(self, file_path: Path) -> list:
-        """读取文件并解析为表格数据（行列表）"""
-        suffix = file_path.suffix.lower()
+    async def _read_file_as_table(self, file_path: str) -> list:
+        """读取文件并解析为表格数据（修复了 .suffix bug）"""
+        path = Path(file_path)
+        suffix = path.suffix.lower()
         rows = []
 
         try:
             if suffix in [".xlsx", ".xls"]:
                 import pandas as pd
-                df = pd.read_excel(file_path)
+                df = pd.read_excel(path)
                 rows = df.to_dict(orient="records")
             elif suffix == ".csv":
                 import pandas as pd
-                df = pd.read_csv(file_path)
+                df = pd.read_csv(path)
                 rows = df.to_dict(orient="records")
             else:
-                # 尝试作为文本解析
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(path, "r", encoding="utf-8") as f:
                     lines = [l.strip() for l in f if l.strip()]
                 if lines:
-                    # 假设第一行是表头，逗号或制表符分隔
                     delimiter = "\t" if "\t" in lines[0] else ","
-                    headers = lines[0].split(delimiter)
+                    headers = [h.strip() for h in lines[0].split(delimiter)]
                     for line in lines[1:]:
-                        values = line.split(delimiter)
+                        values = [v.strip() for v in line.split(delimiter)]
                         rows.append({headers[i]: values[i] if i < len(values) else "" for i in range(len(headers))})
         except Exception as e:
             logger.error(f"表格解析失败: {e}")
 
         return rows
 
+    # ── 服务器启动 ─────────────────────────────────────────────
+
     async def run_stdio(self):
-        """运行 STDIO 模式"""
         from mcp.server.stdio import stdio_server
-        
         async with stdio_server() as (read_stream, write_stream):
             await self.server.run(
-                read_stream,
-                write_stream,
+                read_stream, write_stream,
                 self.server.create_initialization_options(),
             )
-    
+
     def run_sse(self, host: str = "0.0.0.0", port: int = 8000):
-        """运行 SSE 模式（同步方法，内部处理异步）"""
         from mcp.server.sse import SseServerTransport
         from starlette.applications import Starlette
         from starlette.routing import Mount
@@ -405,25 +467,21 @@ class MCPHandler:
         from starlette.middleware.cors import CORSMiddleware
         from urllib.parse import parse_qs
         import uvicorn
-        import json
 
         sse = SseServerTransport("/messages/")
 
         async def mcp_asgi(scope, receive, send):
-            """统一的 MCP ASGI 入口，手动路由所有端点"""
             if scope["type"] != "http":
                 return
 
             path = scope["path"]
             method = scope["method"]
 
-            # 健康检查
             if path == "/health":
                 response = JSONResponse({"status": "ok", "service": "testowl-mcp"})
                 await response(scope, receive, send)
                 return
 
-            # API Key 验证
             if path == "/validate-key" and method == "POST":
                 body = b""
                 more_body = True
@@ -445,12 +503,10 @@ class MCPHandler:
                 await resp(scope, receive, send)
                 return
 
-            # POST 消息
             if path.startswith("/messages") and method == "POST":
                 await sse.handle_post_message(scope, receive, send)
                 return
 
-            # SSE 连接
             if path == "/sse":
                 api_key = ""
                 for name, value in scope.get("headers", []):
@@ -467,49 +523,37 @@ class MCPHandler:
 
                 async with sse.connect_sse(scope, receive, send) as (read_stream, write_stream):
                     await self.server.run(
-                        read_stream,
-                        write_stream,
+                        read_stream, write_stream,
                         self.server.create_initialization_options(),
                     )
                 return
 
-            # 404
             response = JSONResponse({"error": "Not found"}, status_code=404)
             await response(scope, receive, send)
 
         middleware = [
             Middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]),
         ]
-
-        routes = [
-            Mount("/", app=mcp_asgi),
-        ]
-
+        routes = [Mount("/", app=mcp_asgi)]
         app = Starlette(debug=True, routes=routes, middleware=middleware)
-        
-        print(f"🚀 MCP SSE 服务器启动于 http://{host}:{port}")
+
+        print(f"🚀 TestOwl MCP SSE 服务器启动于 http://{host}:{port}")
         print(f"   SSE 端点: http://{host}:{port}/sse")
+        print(f"   健康检查: http://{host}:{port}/health")
         uvicorn.run(app, host=host, port=port)
 
 
-# ==================== 启动入口 ====================
-
 def main():
-    """主函数"""
     parser = argparse.ArgumentParser(description="TestOwl MCP Server")
-    parser.add_argument("--sse", action="store_true", help="使用 SSE 模式（默认 STDIO）")
-    parser.add_argument("--host", default="0.0.0.0", help="SSE 模式主机地址")
-    parser.add_argument("--port", type=int, default=8000, help="SSE 模式端口")
-    
+    parser.add_argument("--sse", action="store_true", help="SSE 模式")
+    parser.add_argument("--host", default="0.0.0.0", help="SSE 主机地址")
+    parser.add_argument("--port", type=int, default=8000, help="SSE 端口")
     args = parser.parse_args()
-    
+
     handler = MCPHandler()
-    
     if args.sse:
-        # SSE 模式：直接调用同步方法
         handler.run_sse(host=args.host, port=args.port)
     else:
-        # STDIO 模式：使用 asyncio
         asyncio.run(handler.run_stdio())
 
 
