@@ -7,6 +7,7 @@
 3. 支持批量生成和模板定制
 """
 
+from enum import Enum
 import json
 import uuid
 from datetime import datetime
