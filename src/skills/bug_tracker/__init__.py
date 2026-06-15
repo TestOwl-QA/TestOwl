@@ -3,7 +3,7 @@ Bug追踪技能模块
 
 功能：
 - Bug报告分析
-- 多平台Bug提交支持（Jira、禅道、Redmine、Tapd）
+- 根因分析与修复建议
 """
 
 from src.skills.bug_tracker.skill import BugTrackerSkill

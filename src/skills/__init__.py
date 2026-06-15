@@ -1,11 +1,11 @@
 """
 技能模块
 
-包含所有Agent技能：
+黑盒测试核心技能：
 - document_analyzer: 需求文档分析
-- test_case_generator: 测试用例生成
 - bug_tracker: Bug追踪分析
-- table_checker: 表检查
+- table_checker: 配置表检查
+- db_checker: 数据库检查
 """
 
 from src.skills.base import BaseSkill, SkillContext, SkillResult
@@ -16,7 +16,7 @@ __all__ = [
     "SkillContext",
     "SkillResult",
     "DocumentAnalyzerSkill",
-    "TestCaseGeneratorSkill",
     "BugTrackerSkill",
     "TableCheckerSkill",
+    "DBCheckerSkill",
 ]

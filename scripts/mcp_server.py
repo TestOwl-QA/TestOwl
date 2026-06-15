@@ -1,4 +1,5 @@
 """MCP 服务器 - 支持 STDIO 和 SSE 两种模式
+黑盒测试核心工具：需求分析 / Bug分析 / 配置表检查 / 数据库检查
 
 使用方法:
     python scripts/mcp_server.py                  # STDIO 模式
@@ -27,18 +28,17 @@ from mcp.server import Server
 from mcp.types import Tool, TextContent
 from src.core.config import Config
 from src.core.agent import GameTestAgent
-from src.skills.test_case_generator import TestCaseGeneratorSkill
+from src.skills.document_analyzer import DocumentAnalyzerSkill
 from src.skills.bug_tracker import BugTrackerSkill
 from src.skills.table_checker import TableCheckerSkill
 from src.skills.db_checker import DBCheckerSkill
-from src.skills.knowledge_search import KnowledgeSearchSkill
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class MCPHandler:
-    """MCP 请求处理器 — 6 个游戏测试专用工具"""
+    """MCP 请求处理器 — 4 个黑盒测试核心工具"""
 
     def __init__(self):
         self.agent: GameTestAgent = None
@@ -47,14 +47,14 @@ class MCPHandler:
         self._setup_tools()
 
     def _setup_tools(self):
-        """设置 MCP 工具（6个精简工具）"""
+        """设置 MCP 工具（4个黑盒测试核心工具）"""
 
         @self.server.list_tools()
         async def list_tools() -> List[Tool]:
             return [
                 Tool(
-                    name="generate_test_cases",
-                    description="根据需求文本直接生成测试用例（分析+生成一步完成）",
+                    name="analyze_document",
+                    description="分析需求文档，提取测试要点、风险点和待确认问题",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -62,14 +62,35 @@ class MCPHandler:
                                 "type": "string",
                                 "description": "需求文档/策划案文本，支持直接粘贴",
                             },
-                            "output_format": {
-                                "type": "string",
-                                "enum": ["json", "markdown"],
-                                "default": "json",
-                                "description": "输出格式",
+                            "focus_areas": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "重点关注领域（如：功能、性能、安全）",
                             },
                         },
                         "required": ["text"],
+                    },
+                ),
+                Tool(
+                    name="analyze_bug",
+                    description="分析Bug描述，自动提取复现步骤、分析根因、给出修复建议",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "description": {
+                                "type": "string",
+                                "description": "Bug 描述",
+                            },
+                            "expected": {
+                                "type": "string",
+                                "description": "期望行为（可选）",
+                            },
+                            "actual": {
+                                "type": "string",
+                                "description": "实际行为（可选）",
+                            },
+                        },
+                        "required": ["description"],
                     },
                 ),
                 Tool(
@@ -102,28 +123,6 @@ class MCPHandler:
                     },
                 ),
                 Tool(
-                    name="analyze_bug",
-                    description="分析Bug描述，自动提取复现步骤、分析根因、给出修复建议",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "description": {
-                                "type": "string",
-                                "description": "Bug 描述",
-                            },
-                            "expected": {
-                                "type": "string",
-                                "description": "期望行为（可选）",
-                            },
-                            "actual": {
-                                "type": "string",
-                                "description": "实际行为（可选）",
-                            },
-                        },
-                        "required": ["description"],
-                    },
-                ),
-                Tool(
                     name="check_database",
                     description="检查数据库结构、数据一致性和业务规则",
                     inputSchema={
@@ -142,33 +141,6 @@ class MCPHandler:
                         "required": ["connection_string"],
                     },
                 ),
-                Tool(
-                    name="search_knowledge",
-                    description="搜索游戏测试知识库（配置表/接口/性能/白盒等8类文档）",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "搜索关键词",
-                            },
-                            "top_k": {
-                                "type": "integer",
-                                "default": 3,
-                                "description": "返回条数",
-                            },
-                        },
-                        "required": ["query"],
-                    },
-                ),
-                Tool(
-                    name="health",
-                    description="检查服务健康状态（MCP/LLM/Web/版本）",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {},
-                    },
-                ),
             ]
 
         @self.server.call_tool()
@@ -181,18 +153,14 @@ class MCPHandler:
             self._init_agent()
 
         try:
-            if name == "generate_test_cases":
-                return await self._tool_generate_test_cases(arguments)
-            elif name == "check_table":
-                return await self._tool_check_table(arguments)
+            if name == "analyze_document":
+                return await self._tool_analyze_document(arguments)
             elif name == "analyze_bug":
                 return await self._tool_analyze_bug(arguments)
+            elif name == "check_table":
+                return await self._tool_check_table(arguments)
             elif name == "check_database":
                 return await self._tool_check_database(arguments)
-            elif name == "search_knowledge":
-                return await self._tool_search_knowledge(arguments)
-            elif name == "health":
-                return await self._tool_health()
             else:
                 return [TextContent(type="text", text=f"未知工具: {name}")]
         except Exception as e:
@@ -205,58 +173,31 @@ class MCPHandler:
         if self.user_api_key:
             config.llm.api_key = self.user_api_key
         self.agent = GameTestAgent(config)
-        self.agent.register_skill_class("test_case_generator", TestCaseGeneratorSkill)
+        self.agent.register_skill_class("document_analyzer", DocumentAnalyzerSkill)
         self.agent.register_skill_class("bug_tracker", BugTrackerSkill)
         self.agent.register_skill_class("table_checker", TableCheckerSkill)
         self.agent.register_skill_class("db_checker", DBCheckerSkill)
-        self.agent.register_skill_class("knowledge_search", KnowledgeSearchSkill)
 
-    # ── 各工具实现 ─────────────────────────────────────────────
+    # ── 需求文档分析 ─────────────────────────────────────────
 
-    async def _tool_generate_test_cases(self, args: dict) -> List[TextContent]:
+    async def _tool_analyze_document(self, args: dict) -> List[TextContent]:
         text = args.get("text", "").strip()
-        output_format = args.get("output_format", "json")
+        focus_areas = args.get("focus_areas", [])
 
         if not text:
-            return [TextContent(type="text", text="错误：请提供需求文本")]
+            return [TextContent(type="text", text="错误：请提供需求文档文本")]
 
-        # 直接传 requirements_text（匹配 skill 接口）
-        result = await self.agent.execute("test_case_generator", {
-            "requirements_text": text,
-            "output_format": output_format,
+        result = await self.agent.execute("document_analyzer", {
+            "content": text,
+            "focus_areas": focus_areas,
         })
         if not result.success:
-            return [TextContent(type="text", text=f"生成用例失败: {result.error}")]
+            return [TextContent(type="text", text=f"文档分析失败: {result.error}")]
+
         data = result.data.to_dict() if hasattr(result.data, "to_dict") else result.data
         return [TextContent(type="text", text=json.dumps(data, ensure_ascii=False, indent=2))]
 
-    async def _tool_check_table(self, args: dict) -> List[TextContent]:
-        content_base64 = args.get("content_base64", "")
-        filename = args.get("filename", "table.xlsx")
-        preset = args.get("preset", "generic")
-        custom_rules = args.get("custom_rules", [])
-
-        if not content_base64:
-            return [TextContent(type="text", text="错误：请提供配置表文件的 base64 编码")]
-
-        # 保存文件并解析为表格数据
-        file_path = await self._save_uploaded_file(filename, content_base64)
-        table_data = await self._read_file_as_table(str(file_path))
-        if not table_data:
-            return [TextContent(type="text", text="错误：无法解析表格数据，请确认文件为 Excel 或 CSV 格式")]
-
-        # 构建规则：预设规则 + 自定义规则
-        rules = self._get_table_rules(preset) + list(custom_rules)
-        if not rules:
-            rules = self._get_table_rules("generic")
-
-        result = await self.agent.execute("table_checker", {
-            "data": table_data,
-            "rules": rules,
-        })
-        if not result.success:
-            return [TextContent(type="text", text=f"表检查失败: {result.error}")]
-        return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
+    # ── Bug 分析 ─────────────────────────────────────────────
 
     async def _tool_analyze_bug(self, args: dict) -> List[TextContent]:
         description = args.get("description", "").strip()
@@ -280,6 +221,36 @@ class MCPHandler:
             return [TextContent(type="text", text=f"Bug 分析失败: {result.error}")]
         return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
 
+    # ── 配置表检查 ───────────────────────────────────────────
+
+    async def _tool_check_table(self, args: dict) -> List[TextContent]:
+        content_base64 = args.get("content_base64", "")
+        filename = args.get("filename", "table.xlsx")
+        preset = args.get("preset", "generic")
+        custom_rules = args.get("custom_rules", [])
+
+        if not content_base64:
+            return [TextContent(type="text", text="错误：请提供配置表文件的 base64 编码")]
+
+        file_path = await self._save_uploaded_file(filename, content_base64)
+        table_data = await self._read_file_as_table(str(file_path))
+        if not table_data:
+            return [TextContent(type="text", text="错误：无法解析表格数据，请确认文件为 Excel 或 CSV 格式")]
+
+        rules = self._get_table_rules(preset) + list(custom_rules)
+        if not rules:
+            rules = self._get_table_rules("generic")
+
+        result = await self.agent.execute("table_checker", {
+            "data": table_data,
+            "rules": rules,
+        })
+        if not result.success:
+            return [TextContent(type="text", text=f"表检查失败: {result.error}")]
+        return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
+
+    # ── 数据库检查 ───────────────────────────────────────────
+
     async def _tool_check_database(self, args: dict) -> List[TextContent]:
         connection_string = args.get("connection_string", "")
         checks = args.get("checks", [])
@@ -294,77 +265,6 @@ class MCPHandler:
         if not result.success:
             return [TextContent(type="text", text=f"数据库检查失败: {result.error}")]
         return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
-
-    async def _tool_search_knowledge(self, args: dict) -> List[TextContent]:
-        query = args.get("query", "").strip()
-        top_k = args.get("top_k", 3)
-
-        if not query:
-            return [TextContent(type="text", text="错误：请提供搜索关键词")]
-
-        result = await self.agent.execute("knowledge_search", {
-            "query": query,
-            "top_k": top_k,
-        })
-        if not result.success:
-            return [TextContent(type="text", text=f"知识库搜索失败: {result.error}")]
-        return [TextContent(type="text", text=json.dumps(result.data, ensure_ascii=False, indent=2))]
-
-    async def _tool_health(self) -> List[TextContent]:
-        """健康检查 — 不依赖 Agent，直接检查各组件"""
-        status = {
-            "service": "testowl-mcp",
-            "mcp_server": "ok",
-            "llm_api": "unknown",
-            "web_api": "unknown",
-            "git_version": "unknown",
-            "uptime": "unknown",
-        }
-
-        # LLM 连通性
-        try:
-            config = Config()
-            from src.adapters.llm.client import LLMClient
-            client = LLMClient(config)
-            if client.client:
-                status["llm_api"] = f"ok (provider={config.llm.provider}, model={config.llm.model})"
-            else:
-                status["llm_api"] = "no_api_key"
-        except Exception as e:
-            status["llm_api"] = f"error: {str(e)[:80]}"
-
-        # Web API 状态
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=3) as hc:
-                resp = await hc.get("http://127.0.0.1:8081/health")
-                status["web_api"] = "ok" if resp.status_code == 200 else f"status={resp.status_code}"
-        except Exception as e:
-            status["web_api"] = f"error: {str(e)[:80]}"
-
-        # Git 版本
-        try:
-            r = subprocess.run(
-                ["git", "log", "--oneline", "-1"],
-                capture_output=True, text=True,
-                cwd=str(PROJECT_ROOT), timeout=5,
-            )
-            status["git_version"] = r.stdout.strip() if r.returncode == 0 else "unknown"
-        except Exception:
-            status["git_version"] = "unknown"
-
-        # 运行时间
-        try:
-            r = subprocess.run(
-                ["systemctl", "show", "testowl", "--property=ActiveEnterTimestamp"],
-                capture_output=True, text=True, timeout=5,
-            )
-            if r.returncode == 0:
-                status["uptime"] = r.stdout.strip().replace("ActiveEnterTimestamp=", "")
-        except Exception:
-            status["uptime"] = "unknown"
-
-        return [TextContent(type="text", text=json.dumps(status, ensure_ascii=False, indent=2))]
 
     # ── 配置表预设规则 ─────────────────────────────────────────
 
@@ -402,10 +302,6 @@ class MCPHandler:
                 {"name": "价格非负", "rule_type": "range", "column": "price", "params": {"min": 0}, "severity": "error"},
                 {"name": "库存非负", "rule_type": "range", "column": "stock", "params": {"min": 0}, "severity": "warning"},
             ]
-        else:
-            # generic
-            pass
-
         return rules
 
     # ── 文件处理 ───────────────────────────────────────────────
@@ -420,7 +316,7 @@ class MCPHandler:
         return file_path
 
     async def _read_file_as_table(self, file_path: str) -> list:
-        """读取文件并解析为表格数据（修复了 .suffix bug）"""
+        """读取文件并解析为表格数据"""
         path = Path(file_path)
         suffix = path.suffix.lower()
         rows = []
@@ -438,7 +334,7 @@ class MCPHandler:
                 with open(path, "r", encoding="utf-8") as f:
                     lines = [l.strip() for l in f if l.strip()]
                 if lines:
-                    delimiter = "\t" if "\t" in lines[0] else ","
+                    delimiter = "	" if "	" in lines[0] else ","
                     headers = [h.strip() for h in lines[0].split(delimiter)]
                     for line in lines[1:]:
                         values = [v.strip() for v in line.split(delimiter)]
@@ -537,14 +433,14 @@ class MCPHandler:
         routes = [Mount("/", app=mcp_asgi)]
         app = Starlette(debug=True, routes=routes, middleware=middleware)
 
-        print(f"🚀 TestOwl MCP SSE 服务器启动于 http://{host}:{port}")
-        print(f"   SSE 端点: http://{host}:{port}/sse")
-        print(f"   健康检查: http://{host}:{port}/health")
+        print(f"TestOwl MCP SSE: http://{host}:{port}")
+        print(f"   SSE: http://{host}:{port}/sse")
+        print(f"   Health: http://{host}:{port}/health")
         uvicorn.run(app, host=host, port=port)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="TestOwl MCP Server")
+    parser = argparse.ArgumentParser(description="TestOwl MCP Server - 黑盒测试核心工具")
     parser.add_argument("--sse", action="store_true", help="SSE 模式")
     parser.add_argument("--host", default="0.0.0.0", help="SSE 主机地址")
     parser.add_argument("--port", type=int, default=8000, help="SSE 端口")

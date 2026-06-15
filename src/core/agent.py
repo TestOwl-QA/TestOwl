@@ -302,7 +302,7 @@ class GameTestAgent:
             except Exception as e:
                 return f"发生错误：{str(e)}"
         
-        return "我不太理解您的需求，请尝试描述您想要：\n1. 分析需求文档\n2. 生成测试用例\n3. 检查数据表\n4. 分析Bug"
+        return "我不太理解您的需求，请尝试描述您想要：\n1. 分析需求文档（提取测试点与风险）\n2. 检查配置表\n3. 检查数据库\n4. 分析Bug"
     
     def _detect_intent(self, message: str) -> Dict[str, Any]:
         """
@@ -326,8 +326,8 @@ class GameTestAgent:
         # 测试用例生成意图
         if any(kw in message_lower for kw in ["生成用例", "测试用例", "用例", "测试点"]):
             return {
-                "skill": "test_case_generator",
-                "params": {"query": message}
+                "skill": "document_analyzer",
+                "params": {"content": message, "focus_areas": ["功能", "边界", "异常"]}
             }
         
         # 表检查意图

@@ -55,16 +55,6 @@ class StorageConfig:
     endpoint: str = ""
 
 
-@dataclass
-class PlatformConfig:
-    """项目管理平台配置"""
-    name: str = ""  # jira, zentao, redmine, tapd
-    enabled: bool = False
-    base_url: str = ""
-    username: str = ""
-    password: str = ""
-    api_token: str = ""
-    project_key: str = ""
 
 
 @dataclass
@@ -81,14 +71,6 @@ class TableCheckConfig:
     batch_size: int = 1000
 
 
-@dataclass
-class TestCaseConfig:
-    """测试用例生成配置"""
-    output_format: str = "excel"  # excel, xmind
-    template_dir: str = "./templates"
-    default_priority: str = "P2"
-    include_precondition: bool = True
-    include_test_data: bool = True
 
 
 class Config:
@@ -108,9 +90,7 @@ class Config:
         self.llm: LLMConfig = LLMConfig()
         self.document: DocumentConfig = DocumentConfig()
         self.storage: StorageConfig = StorageConfig()
-        self.platforms: List[PlatformConfig] = []
         self.table_check: TableCheckConfig = TableCheckConfig()
-        self.test_case: TestCaseConfig = TestCaseConfig()
         
         self._load()
     
@@ -211,22 +191,7 @@ class Config:
             endpoint=storage_config.get("endpoint", ""),
         )
         
-        # 平台配置
-        platforms_config = self._raw_config.get("platforms", [])
-        self.platforms = [
-            PlatformConfig(
-                name=p.get("name", ""),
-                enabled=p.get("enabled", False),
-                base_url=p.get("base_url", ""),
-                username=p.get("username", ""),
-                password=p.get("password", ""),
-                api_token=p.get("api_token", ""),
-                project_key=p.get("project_key", ""),
-            )
-            for p in platforms_config
-        ]
-        
-        # 表检查配置
+                # 表检查配置
         table_config = self._raw_config.get("table_check", {})
         self.table_check = TableCheckConfig(
             enabled_rules=table_config.get("enabled_rules", [
@@ -237,16 +202,7 @@ class Config:
             batch_size=table_config.get("batch_size", 1000),
         )
         
-        # 测试用例配置
-        tc_config = self._raw_config.get("test_case", {})
-        self.test_case = TestCaseConfig(
-            output_format=tc_config.get("output_format", "excel"),
-            template_dir=tc_config.get("template_dir", "./templates"),
-            default_priority=tc_config.get("default_priority", "P2"),
-            include_precondition=tc_config.get("include_precondition", True),
-            include_test_data=tc_config.get("include_test_data", True),
-        )
-    
+
     def get(self, key: str, default: Any = None) -> Any:
         """
         获取原始配置值
